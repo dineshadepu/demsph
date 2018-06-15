@@ -1,5 +1,5 @@
 use super::{GetMutDEMDest, GetMutDEMSrc};
-use contact_search::{get_neighbours_ll, LinkedListGrid};
+use contact_search::{get_neighbours_ll_2d, get_neighbours_ll_3d, LinkedListGrid};
 
 pub fn make_forces_zero<T: GetMutDEMDest>(entity: &mut T) {
     let ent1 = entity.get_mut_parts();
@@ -36,10 +36,26 @@ pub fn integrate<T: GetMutDEMDest>(src: &mut T, dt: f32) {
     }
 }
 
-pub fn spring_force_self<T: GetMutDEMDest>(entity: &mut T, kn: f32, grid: &LinkedListGrid) {
+pub fn spring_force_self<T: GetMutDEMDest>(entity: &mut T, kn: f32, grid: &LinkedListGrid, dim: usize) {
     let dst = entity.get_mut_parts();
+
+    let get_nbrs = if dim == 2 {
+        get_neighbours_ll_2d
+    }
+    else {
+        get_neighbours_ll_3d
+    };
+
     for i in 0..*dst.len {
-        let nbrs = get_neighbours_ll([dst.x[i], dst.y[i], dst.z[i]], &grid, &dst.id);
+        // let nbrs = if dim == 2 {
+        //     get_neighbours_ll_3d([dst.x[i], dst.y[i], dst.z[i]], &grid, &dst.id)
+        // }
+        // else {
+        //     get_neighbours_ll_3d([dst.x[i], dst.y[i], dst.z[i]], &grid, &dst.id)
+        // };
+        let nbrs = get_nbrs([dst.x[i], dst.y[i], dst.z[i]], &grid, &dst.id);
+
+
         for j in nbrs {
             if i != j {
                 let dx = dst.x[i] - dst.x[j];
@@ -66,11 +82,12 @@ pub fn spring_force_other<T: GetMutDEMDest, U: GetMutDEMSrc>(
     source: &mut U,
     kn: f32,
     grid: &LinkedListGrid,
+    dim: usize,
 ) {
     let dst = destination.get_mut_parts();
     let src = source.get_mut_parts();
     for i in 0..*dst.len {
-        let nbrs = get_neighbours_ll([dst.x[i], dst.y[i], dst.z[i]], &grid, &src.id);
+        let nbrs = get_neighbours_ll_3d([dst.x[i], dst.y[i], dst.z[i]], &grid, &src.id);
         for j in nbrs {
             let dx = dst.x[i] - src.x[j];
             let dy = dst.y[i] - src.y[j];

@@ -1,6 +1,3 @@
-#![allow(dead_code)]
-#![allow(unused_imports)]
-
 extern crate granules;
 extern crate ndarray;
 
@@ -86,6 +83,7 @@ fn main() {
     );
 
     let dt = 3e-4;
+    let dim = 2;
     let tf = 2.;
     let mut time_step_number = 0;
     let mut t = 0.;
@@ -97,8 +95,8 @@ fn main() {
         let grid = LinkedListGrid::new(&mut vec![&mut grains, &mut tank], scale);
         make_forces_zero(&mut grains);
         body_force_dem(&mut grains, 0., -9.81, 0.);
-        spring_force_self(&mut grains, 1e7, &grid);
-        spring_force_other(&mut grains, &mut tank, 1e7, &grid);
+        spring_force_self(&mut grains, 1e7, &grid, dim);
+        spring_force_other(&mut grains, &mut tank, 1e7, &grid, dim);
         integrate(&mut grains, dt);
         t = t + dt;
         if time_step_number % 100 == 0 {

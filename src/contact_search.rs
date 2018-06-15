@@ -149,7 +149,7 @@ impl LinkedListGrid {
     }
 }
 
-pub fn get_neighbours_ll(
+pub fn get_neighbours_ll_3d(
     pos: [f32; 3],
     grid: &LinkedListGrid,
     src_id: &usize,
@@ -163,77 +163,100 @@ pub fn get_neighbours_ll(
 
     // index in grid
     let index = x_index * grid.no_y_cells + y_index + z_index * grid.no_x_cells * grid.no_y_cells;
+    let xy_cells = grid.no_x_cells * grid.no_y_cells;
 
     let mut neighbours_particle: LinkedList<usize> = LinkedList::new();
 
+    // for the stack of z = 0
+    for neighbour in &[
+        Some(index),
+        index.checked_sub(1),
+        index.checked_add(1),
+        index.checked_sub(grid.no_y_cells),
+        index.checked_sub(grid.no_y_cells - 1),
+        index.checked_sub(grid.no_y_cells + 1),
+        index.checked_add(grid.no_y_cells),
+        index.checked_add(grid.no_y_cells - 1),
+        index.checked_add(grid.no_y_cells + 1),
+    ] {
+        if let Some(cell) = neighbour.and_then(|index| cells.get(index)) {
+            for value in &cell.indices[src_id] {
+                neighbours_particle.push_front(*value);
+            }
+        }
+    }
+    // for the stack of z = +1
+    for neighbour in &[
+        index.checked_add(xy_cells),
+        index.checked_add(xy_cells - 1),
+        index.checked_add(xy_cells + 1),
+        index.checked_add(xy_cells - grid.no_y_cells),
+        index.checked_add(xy_cells - grid.no_y_cells - 1),
+        index.checked_add(xy_cells - grid.no_y_cells + 1),
+        index.checked_add(xy_cells + grid.no_y_cells),
+        index.checked_add(xy_cells + grid.no_y_cells - 1),
+        index.checked_add(xy_cells + grid.no_y_cells + 1),
+    ] {
+        if let Some(cell) = neighbour.and_then(|index| cells.get(index)) {
+            for value in &cell.indices[src_id] {
+                neighbours_particle.push_front(*value);
+            }
+        }
+    }
+    // for the stack of z = -1
+    for neighbour in &[
+        index.checked_sub(xy_cells),
+        index.checked_sub(xy_cells - 1),
+        index.checked_sub(xy_cells + 1),
+        index.checked_sub(xy_cells - grid.no_y_cells),
+        index.checked_sub(xy_cells - grid.no_y_cells - 1),
+        index.checked_sub(xy_cells - grid.no_y_cells + 1),
+        index.checked_sub(xy_cells + grid.no_y_cells),
+        index.checked_sub(xy_cells + grid.no_y_cells - 1),
+        index.checked_sub(xy_cells + grid.no_y_cells + 1),
+    ] {
+        if let Some(cell) = neighbour.and_then(|index| cells.get(index)) {
+            for value in &cell.indices[src_id] {
+                neighbours_particle.push_front(*value);
+            }
+        }
+    }
+    neighbours_particle
+}
 
-    if index >= 0 {
-        for val in &cells[index].indices[src_id] {
-            neighbours_particle.push_front(*val);
-        }
-    }
-    if let Some(j) = index.checked_sub(1) {
-        // make sure that the index is in limits of cell
-        if j <= cells_len - 1 {
-            for val in &cells[j].indices[src_id] {
-                neighbours_particle.push_front(*val);
-            }
-        }
-    }
-    if let Some(j) = index.checked_add(1) {
-        // make sure that the index is in limits of cell
-        if j <= cells_len - 1 {
-            for val in &cells[j].indices[src_id] {
-                neighbours_particle.push_front(*val);
-            }
-        }
-    }
-    if let Some(j) = index.checked_sub(grid.no_y_cells) {
-        // make sure that the index is in limits of cell
-        if j <= cells_len - 1 {
-            for val in &cells[j].indices[src_id] {
-                neighbours_particle.push_front(*val);
-            }
-        }
-    }
-    if let Some(j) = index.checked_sub(grid.no_y_cells - 1) {
-        // make sure that the index is in limits of cell
-        if j <= cells_len - 1 {
-            for val in &cells[j].indices[src_id] {
-                neighbours_particle.push_front(*val);
-            }
-        }
-    }
-    if let Some(j) = index.checked_sub(grid.no_y_cells + 1) {
-        // make sure that the index is in limits of cell
-        if j <= cells_len - 1 {
-            for val in &cells[j].indices[src_id] {
-                neighbours_particle.push_front(*val);
-            }
-        }
-    }
 
-    if let Some(j) = index.checked_add(grid.no_y_cells) {
-        // make sure that the index is in limits of cell
-        if j <= cells_len - 1 {
-            for val in &cells[j].indices[src_id] {
-                neighbours_particle.push_front(*val);
-            }
-        }
-    }
-    if let Some(j) = index.checked_add(grid.no_y_cells - 1) {
-        // make sure that the index is in limits of cell
-        if j <= cells_len - 1 {
-            for val in &cells[j].indices[src_id] {
-                neighbours_particle.push_front(*val);
-            }
-        }
-    }
-    if let Some(j) = index.checked_add(grid.no_y_cells + 1) {
-        // make sure that the index is in limits of cell
-        if j <= cells_len - 1 {
-            for val in &cells[j].indices[src_id] {
-                neighbours_particle.push_front(*val);
+
+pub fn get_neighbours_ll_2d(
+    pos: [f32; 3],
+    grid: &LinkedListGrid,
+    src_id: &usize,
+) -> LinkedList<usize> {
+    let cells = &grid.cells;
+
+    let x_index = ((pos[0] - grid.x_min) / grid.size) as usize;
+    let y_index = ((pos[1] - grid.y_min) / grid.size) as usize;
+    let z_index = ((pos[2] - grid.z_min) / grid.size) as usize;
+
+    // index in grid
+    let index = x_index * grid.no_y_cells + y_index + z_index * grid.no_x_cells * grid.no_y_cells;
+
+    let mut neighbours_particle: LinkedList<usize> = LinkedList::new();
+
+    // for the stack of z = 0
+    for neighbour in &[
+        Some(index),
+        index.checked_sub(1),
+        index.checked_add(1),
+        index.checked_sub(grid.no_y_cells),
+        index.checked_sub(grid.no_y_cells - 1),
+        index.checked_sub(grid.no_y_cells + 1),
+        index.checked_add(grid.no_y_cells),
+        index.checked_add(grid.no_y_cells - 1),
+        index.checked_add(grid.no_y_cells + 1),
+    ] {
+        if let Some(cell) = neighbour.and_then(|index| cells.get(index)) {
+            for value in &cell.indices[src_id] {
+                neighbours_particle.push_front(*value);
             }
         }
     }
