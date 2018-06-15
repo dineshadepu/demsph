@@ -1,4 +1,5 @@
 use ndarray::prelude::*;
+use contact_search::{NNPS, NNPSMutParts};
 pub mod equations;
 
 pub struct DemDiscrete {
@@ -132,5 +133,54 @@ impl GetMutDEMDest for DemDiscrete {
             tauz: &mut self.tauz,
             id: &mut self.id,
         }
+    }
+}
+
+pub trait GetMutDEMSrc{
+    fn get_mut_parts(&mut self) -> DEMDiscreteMutSource;
+}
+
+impl GetMutDEMSrc for DemDiscrete {
+    fn get_mut_parts(&mut self) -> DEMDiscreteMutSource {
+        DEMDiscreteMutSource {
+            len: &mut self.len,
+            m: &mut self.m,
+            x: &mut self.x,
+            y: &mut self.y,
+            z: &mut self.z,
+            u: &mut self.u,
+            v: &mut self.v,
+            w: &mut self.w,
+            omega_x: &mut self.omega_x,
+            omega_y: &mut self.omega_y,
+            omega_z: &mut self.omega_z,
+            inertia: &mut self.inertia,
+            h: &mut self.h,
+            m_inv: &mut self.m_inv,
+            rad: &mut self.rad,
+            id: &mut self.id,
+        }
+    }
+}
+impl NNPS for DemDiscrete{
+    fn get_parts_mut(&mut self) -> NNPSMutParts {
+        NNPSMutParts {
+            len: &mut self.len,
+            x: &mut self.x,
+            y: &mut self.y,
+            z: &mut self.z,
+            h: &mut self.h,
+            id: &mut self.id,
+        }
+    }
+
+    fn get_x(&self) -> &Array1<f32> {
+        &self.x
+    }
+    fn get_y(&self) -> &Array1<f32> {
+        &self.y
+    }
+    fn get_z(&self) -> &Array1<f32> {
+        &self.z
     }
 }
