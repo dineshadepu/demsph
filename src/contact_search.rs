@@ -1,6 +1,5 @@
 use ndarray::Array1;
 use std::collections::HashMap;
-use std::collections::LinkedList;
 
 pub struct NNPSMutParts<'a> {
     pub len: &'a mut usize,
@@ -22,7 +21,7 @@ pub trait NNPS {
 
 #[derive(Debug, Clone)]
 pub struct CellGrid {
-    pub indices: HashMap<usize, LinkedList<usize>>,
+    pub indices: HashMap<usize, Vec<usize>>,
 }
 
 impl CellGrid {
@@ -31,7 +30,7 @@ impl CellGrid {
             indices: HashMap::new(),
         };
         for key in keys {
-            cell.indices.insert(*key, LinkedList::new());
+            cell.indices.insert(*key, Vec::new());
         }
         cell
     }
@@ -128,7 +127,7 @@ impl LinkedListGrid {
                 let z_index = ((entity.z[i] - z_min) / size) as usize;
                 // one dimentional index is
                 let index = x_index * no_y_cells + y_index + z_index * no_x_cells * no_y_cells;
-                cells[index].indices.get_mut(&id).unwrap().push_back(i);
+                cells[index].indices.get_mut(&id).unwrap().push(i);
             }
         }
         let grid = LinkedListGrid {
@@ -149,13 +148,12 @@ impl LinkedListGrid {
     }
 }
 
-pub fn get_neighbours_ll_3d(
+pub fn get_neighbours_ll_3d<'a>(
     pos: [f32; 3],
-    grid: &LinkedListGrid,
+    grid: &'a LinkedListGrid,
     src_id: &usize,
-) -> LinkedList<usize> {
+) -> Vec<&'a Vec<usize>> {
     let cells = &grid.cells;
-    let cells_len = cells.len();
 
     let x_index = ((pos[0] - grid.x_min) / grid.size) as usize;
     let y_index = ((pos[1] - grid.y_min) / grid.size) as usize;
@@ -165,7 +163,7 @@ pub fn get_neighbours_ll_3d(
     let index = x_index * grid.no_y_cells + y_index + z_index * grid.no_x_cells * grid.no_y_cells;
     let xy_cells = grid.no_x_cells * grid.no_y_cells;
 
-    let mut neighbours_particle: LinkedList<usize> = LinkedList::new();
+    let mut neighbours_particle: Vec<&Vec<usize>> = Vec::new();
 
     // for the stack of z = 0
     for neighbour in &[
@@ -180,9 +178,7 @@ pub fn get_neighbours_ll_3d(
         index.checked_add(grid.no_y_cells + 1),
     ] {
         if let Some(cell) = neighbour.and_then(|index| cells.get(index)) {
-            for value in &cell.indices[src_id] {
-                neighbours_particle.push_front(*value);
-            }
+            neighbours_particle.push(&cell.indices[src_id])
         }
     }
     // for the stack of z = +1
@@ -198,9 +194,7 @@ pub fn get_neighbours_ll_3d(
         index.checked_add(xy_cells + grid.no_y_cells + 1),
     ] {
         if let Some(cell) = neighbour.and_then(|index| cells.get(index)) {
-            for value in &cell.indices[src_id] {
-                neighbours_particle.push_front(*value);
-            }
+            neighbours_particle.push(&cell.indices[src_id]);
         }
     }
     // for the stack of z = -1
@@ -216,31 +210,28 @@ pub fn get_neighbours_ll_3d(
         index.checked_sub(xy_cells + grid.no_y_cells + 1),
     ] {
         if let Some(cell) = neighbour.and_then(|index| cells.get(index)) {
-            for value in &cell.indices[src_id] {
-                neighbours_particle.push_front(*value);
+            if let Some(cell) = neighbour.and_then(|index| cells.get(index)) {
+                neighbours_particle.push(&cell.indices[src_id]);
             }
         }
     }
     neighbours_particle
 }
 
-
-
-pub fn get_neighbours_ll_2d(
+pub fn get_neighbours_ll_2d<'a>(
     pos: [f32; 3],
-    grid: &LinkedListGrid,
+    grid: &'a LinkedListGrid,
     src_id: &usize,
-) -> LinkedList<usize> {
+) -> Vec<&'a Vec<usize>> {
     let cells = &grid.cells;
 
     let x_index = ((pos[0] - grid.x_min) / grid.size) as usize;
     let y_index = ((pos[1] - grid.y_min) / grid.size) as usize;
-    let z_index = ((pos[2] - grid.z_min) / grid.size) as usize;
 
     // index in grid
-    let index = x_index * grid.no_y_cells + y_index + z_index * grid.no_x_cells * grid.no_y_cells;
+    let index = x_index * grid.no_y_cells + y_index;
 
-    let mut neighbours_particle: LinkedList<usize> = LinkedList::new();
+    let mut neighbours_particle: Vec<&Vec<usize>> = Vec::new();
 
     // for the stack of z = 0
     for neighbour in &[
@@ -255,9 +246,7 @@ pub fn get_neighbours_ll_2d(
         index.checked_add(grid.no_y_cells + 1),
     ] {
         if let Some(cell) = neighbour.and_then(|index| cells.get(index)) {
-            for value in &cell.indices[src_id] {
-                neighbours_particle.push_front(*value);
-            }
+            neighbours_particle.push(&cell.indices[src_id])
         }
     }
     neighbours_particle
