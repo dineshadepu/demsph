@@ -1,0 +1,18 @@
+[package]
+name = "granules-rs"
+version = "0.1.0"
+authors = ["dineshadepu <adepu.dinesh.a@gmail.com>"]
+license = "MIT"
+description = "Discrete element method"
+repository = "https://gitlab.com/dineshadepu/granules-rs"
+readme = "Readme.md"
+keywords = ["dem","sph","fluid simulation"]
+
+
+[dependencies]
+ndarray="0.11.0"
+
+
+[lib]
+name = "granules"
+path = "src/lib.rs"
