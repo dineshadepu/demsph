@@ -210,9 +210,7 @@ pub fn get_neighbours_ll_3d<'a>(
         index.checked_sub(xy_cells + grid.no_y_cells + 1),
     ] {
         if let Some(cell) = neighbour.and_then(|index| cells.get(index)) {
-            if let Some(cell) = neighbour.and_then(|index| cells.get(index)) {
-                neighbours_particle.push(&cell.indices[src_id]);
-            }
+            neighbours_particle.push(&cell.indices[src_id]);
         }
     }
     neighbours_particle
