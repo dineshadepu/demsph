@@ -3,16 +3,17 @@ use std::fs;
 use std::fs::File;
 use std::io::prelude::*;
 use std;
+use std::path::Path;
+
 
 pub fn get_output_directory_name() -> String {
-    let executable = std::env::current_exe().unwrap();
-    let name =  executable.to_str().unwrap();
-    let mut file_name = name.split("debug").skip(1);
+    let name = std::env::current_exe().unwrap();
+    let name = Path::new(&name).file_name().unwrap().to_os_string().into_string().unwrap();
     let crate_dir = env!("CARGO_MANIFEST_DIR");
     let dir_name = format!(
-        "{}{}_output",
+        "{}/examples/{}_output",
         crate_dir,
-        file_name.next().unwrap(),
+        name,
     );
     dir_name.to_string()
 }
