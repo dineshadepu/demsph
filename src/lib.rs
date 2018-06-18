@@ -1,7 +1,10 @@
 #[macro_use]
 extern crate ndarray;
 
-pub mod physics;
-pub mod geometry;
+#[macro_use]
+extern crate itertools;
+
 pub mod contact_search;
+pub mod geometry;
+pub mod physics;
 pub mod save_data;

@@ -94,6 +94,142 @@ pub fn dam_break_2d_geometry(
     (xf, yf, xt, yt)
 }
 
+pub fn get_3d_block(
+    block_length: f32,
+    block_height: f32,
+    block_width: f32,
+    block_spacing: f32,
+) -> (Vec<f32>, Vec<f32>, Vec<f32>) {
+    let mut w = 0.;
+
+    let mut x = Vec::new();
+    let mut y = Vec::new();
+    let mut z = Vec::new();
+    while w < block_width {
+        let (mut x_tmp, mut y_tmp) = grid_2d(block_length, block_height, block_spacing);
+        let mut z_tmp = vec![w; x_tmp.len()];
+
+        // append the local slice at width w to global x, y, z
+        x.append(&mut x_tmp);
+        y.append(&mut y_tmp);
+        z.append(&mut z_tmp);
+
+        // increase the width to new layer
+        w += block_spacing;
+    }
+    (x, y, z)
+}
+
+pub fn get_3d_tank(
+    tank_length: f32,
+    tank_height: f32,
+    tank_width: f32,
+    tank_spacing: f32,
+    tank_layers: usize,
+    layers_outside: bool,
+) -> (Vec<f32>, Vec<f32>, Vec<f32>) {
+    // change the type of tank layer
+    let tank_layers = tank_layers as f32;
+
+    let (x, y, z) = if layers_outside {
+        // increase the length width and height of tank block
+        let tank_height_extended = tank_height + tank_layers * tank_spacing;
+        let tank_length_extended = tank_length + tank_layers * tank_spacing;
+        let tank_width_extended = tank_width + tank_layers * 2. * tank_spacing;
+
+        let (xt, yt, zt) = get_3d_block(
+            tank_length_extended,
+            tank_height_extended,
+            tank_width_extended,
+            tank_spacing,
+        );
+
+        // now remove the particles of the whole tank
+        let mut x = Vec::new();
+        let mut y = Vec::new();
+        let mut z = Vec::new();
+        let x_left_limit = 0. + tank_spacing / 10. + (tank_layers - 1.) * tank_spacing;
+        let y_left_limit = 0. + tank_spacing / 10. + (tank_layers - 1.) * tank_spacing;
+        let z_left_limit = 0. + tank_spacing / 10. + (tank_layers - 1.) * tank_spacing;
+        for (&x_tmp, &y_tmp, &z_tmp) in izip!(&xt, &yt, &zt) {
+            if x_tmp < x_left_limit || x_tmp > tank_length {
+                x.push(x_tmp);
+                y.push(y_tmp);
+                z.push(z_tmp);
+            } else {
+                if y_tmp < y_left_limit {
+                    x.push(x_tmp);
+                    y.push(y_tmp);
+                    z.push(z_tmp);
+                } else {
+                    if z_tmp < z_left_limit || z_tmp > tank_width {
+                        x.push(x_tmp);
+                        y.push(y_tmp);
+                        z.push(z_tmp);
+                    }
+                }
+            }
+        }
+        (x, y, z)
+    } else {
+        let (xt, yt, zt) = get_3d_block(tank_length, tank_height, tank_width, tank_spacing);
+        // now remove the particles of the whole tank
+        let mut x: Vec<f32> = Vec::new();
+        let mut y: Vec<f32> = Vec::new();
+        let mut z: Vec<f32> = Vec::new();
+        let x_left_limit = 0. + tank_spacing / 10. + (tank_layers - 1.) * tank_spacing;
+        let x_right_limit = tank_length - tank_spacing / 10. - (tank_layers - 1.) * tank_spacing;
+        let y_left_limit = 0. + tank_spacing / 10. + (tank_layers - 1.) * tank_spacing;
+        let _y_right_limit = tank_height - tank_spacing / 10. - (tank_layers - 1.) * tank_spacing;
+        let z_left_limit = 0. + tank_spacing / 10. + (tank_layers - 1.) * tank_spacing;
+        let z_right_limit = tank_width - tank_spacing / 10. - (tank_layers - 1.) * tank_spacing;
+        for (&x_tmp, &y_tmp, &z_tmp) in izip!(&xt, &yt, &zt) {
+            if x_tmp < x_left_limit || x_tmp > x_right_limit {
+                x.push(x_tmp);
+                y.push(y_tmp);
+                z.push(z_tmp);
+            } else {
+                if y_tmp < y_left_limit {
+                    x.push(x_tmp);
+                    y.push(y_tmp);
+                    z.push(z_tmp);
+                } else {
+                    if z_tmp < z_left_limit || z_tmp > z_right_limit {
+                        x.push(x_tmp);
+                        y.push(y_tmp);
+                        z.push(z_tmp);
+                    }
+                }
+            }
+        }
+        (x, y, z)
+    };
+    (x, y, z)
+}
+pub fn dam_break_3d_geometry(
+    f_l: f32,
+    f_h: f32,
+    f_w: f32,
+    f_s: f32,
+    t_l: f32,
+    t_h: f32,
+    t_w: f32,
+    t_s: f32,
+    layers: usize,
+    layers_outside: bool,
+) -> (Vec<f32>, Vec<f32>, Vec<f32>, Vec<f32>, Vec<f32>, Vec<f32>) {
+    // --------------------------------------------
+    // --------------------------------------------
+    // first create a 3d block of fluid
+    let (xf, yf, zf) = get_3d_block(f_l, f_h, f_w, f_s);
+
+    // now create tank block
+    let (xt, yt, zt) = get_3d_tank(t_l, t_h, t_w, t_s, layers, layers_outside);
+
+    // Now remove the layers
+    (xf, yf, zf, xt, yt, zt)
+}
+
 pub fn zeros_like(x: &Vec<f32>) -> Vec<f32> {
     let y = vec![0.; x.len()];
     return y;

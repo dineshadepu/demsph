@@ -46,7 +46,7 @@ impl DumpData for DemDiscrete {
 
         // write the positions
         for i in 0..np{
-            writeln!(&mut file, "{} {} 0", self.x[i], self.y[i]).unwrap();
+            writeln!(&mut file, "{} {} {}", self.x[i], self.y[i], self.z[i]).unwrap();
         }
         // write diameter
         writeln!(&mut file, "Point_DATA {}", np).unwrap();
@@ -64,12 +64,12 @@ impl DumpData for DemDiscrete {
         // write velocity
         writeln!(&mut file, "VECTORS Velocity float").unwrap();
         for i in 0..np{
-            writeln!(&mut file, "{} {} 0.0", self.u[i], self.v[i]).unwrap();
+            writeln!(&mut file, "{} {} {}", self.u[i], self.v[i], self.w[i]).unwrap();
         }
         // write forces
         writeln!(&mut file, "VECTORS Force float").unwrap();
         for i in 0..np{
-            writeln!(&mut file, "{} {} 0.0", self.fx[i], self.fy[i]).unwrap();
+            writeln!(&mut file, "{} {} {}", self.fx[i], self.fy[i], self.fz[i]).unwrap();
         }
     }
 
