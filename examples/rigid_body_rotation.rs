@@ -1,11 +1,11 @@
 extern crate granules;
-extern crate ndarray;
 
 use granules::contact_search::LinkedListGrid;
 use granules::geometry::get_3d_block;
 use granules::physics::rigid_body::RigidBody;
+use granules::physics::rigid_body::equations::{body_force_rigid_body, make_forces_zero_rigid_body};
 use granules::save_data::{create_output_directory, dump_output};
-use ndarray::prelude::*;
+use granules::integrate::{RK2, integrate_stage1};
 
 pub struct SimulationData {
     pub cube_spacing: f32,
@@ -27,9 +27,9 @@ impl SimulationData {
 
 fn setup_particle_properties(
     part1: &mut RigidBody,
-    x: Array1<f32>,
-    y: Array1<f32>,
-    z: Array1<f32>,
+    x: Vec<f32>,
+    y: Vec<f32>,
+    z: Vec<f32>,
     h: f32,
     mass: f32,
 ) {
@@ -57,40 +57,44 @@ fn main() {
 
     setup_particle_properties(
         &mut cube,
-        Array::from_vec(xg),
-        Array::from_vec(yg),
-        Array::from_vec(zg),
+        xg,
+        yg,
+        zg,
         sim_data.cube_spacing / 2.,
         1000. * sim_data.cube_spacing.powf(2.),
     );
     // calculate all the properties required by rigid body simulation
+
+    // Assign angular velocity to the body, precomputed function will
+    // evaluate its angular momentum
+    cube.omega = vec![0., 0., 3.];
     cube.pre_compute_values();
-    // shift cube up
-    cube.x += 2.5;
-    cube.y += 1.5;
-    cube.z += 1.5;
+
+    // shift grains up
+    for i in 0..cube.x.len() {
+        cube.x[i] += 2.5;
+        cube.y[i] += 1.5;
+        cube.z[i] += 1.5;
+    }
 
     let dt = 5e-4;
     let dim = 3;
-    let tf = 2.;
+    let tf = 5.;
     let mut time_step_number = 0;
     let mut t = 0.;
     let scale = 2.;
-    println!("Total steps are {}", tf / dt);
 
     create_output_directory();
 
     while t < tf {
-        let grid = LinkedListGrid::new(&mut vec![&mut cube], scale);
-        make_forces_zero(&mut cube);
-        body_force_dem(&mut cube, 0., -9.81, 0.);
-        spring_force_self(&mut cube, 1e7, &grid, dim);
-        spring_force_other(&mut cube, &mut tank, 1e7, &grid, dim);
-        integrate(&mut cube, dt);
+        // let grid = LinkedListGrid::new(&mut vec![&mut cube], scale);
+        make_forces_zero_rigid_body(&mut vec![&mut cube]);
+        // body_force_rigid_body(&mut vec![&mut cube], 0., -9.81, 0.);
+        integrate_stage1(&mut vec![&mut cube], dt * 2.);
         t = t + dt;
         if time_step_number % 100 == 0 {
             println!("{:?}", time_step_number);
-            dump_output(&mut vec![&mut cube, &mut tank], time_step_number);
+            dump_output(&mut vec![&mut cube], time_step_number);
         }
         time_step_number += 1;
     }

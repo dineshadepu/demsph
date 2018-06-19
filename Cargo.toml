@@ -11,6 +11,7 @@ keywords = ["dem","sph","fluid simulation"]
 
 [dependencies]
 itertools="0.7"
+rulinalg="0.4.2"
 
 
 [lib]
