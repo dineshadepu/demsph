@@ -1,12 +1,11 @@
-use ndarray::Array1;
 use std::collections::HashMap;
 
 pub struct NNPSMutParts<'a> {
     pub len: &'a mut usize,
-    pub x: &'a mut Array1<f32>,
-    pub y: &'a mut Array1<f32>,
-    pub z: &'a mut Array1<f32>,
-    pub h: &'a mut Array1<f32>,
+    pub x: &'a mut Vec<f32>,
+    pub y: &'a mut Vec<f32>,
+    pub z: &'a mut Vec<f32>,
+    pub h: &'a mut Vec<f32>,
     pub id: &'a mut usize,
 }
 
@@ -14,9 +13,9 @@ pub struct NNPSMutParts<'a> {
 // implemented linked list neighbour search
 pub trait NNPS {
     fn get_parts_mut(&mut self) -> NNPSMutParts;
-    fn get_x(&self) -> &Array1<f32>;
-    fn get_y(&self) -> &Array1<f32>;
-    fn get_z(&self) -> &Array1<f32>;
+    fn get_x(&self) -> &Vec<f32>;
+    fn get_y(&self) -> &Vec<f32>;
+    fn get_z(&self) -> &Vec<f32>;
 }
 
 #[derive(Debug, Clone)]

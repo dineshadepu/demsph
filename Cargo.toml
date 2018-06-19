@@ -10,7 +10,6 @@ keywords = ["dem","sph","fluid simulation"]
 
 
 [dependencies]
-ndarray="0.11.0"
 itertools="0.7"
 
 

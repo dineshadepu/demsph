@@ -1,29 +1,28 @@
-use ndarray::prelude::*;
 use contact_search::{NNPS, NNPSMutParts};
 pub mod equations;
 
 pub struct DemDiscrete {
     pub len: usize,
-    pub m: Array1<f32>,
-    pub x: Array1<f32>,
-    pub y: Array1<f32>,
-    pub z: Array1<f32>,
-    pub u: Array1<f32>,
-    pub v: Array1<f32>,
-    pub w: Array1<f32>,
-    pub omega_x: Array1<f32>,
-    pub omega_y: Array1<f32>,
-    pub omega_z: Array1<f32>,
-    pub inertia: Array1<f32>,
-    pub h: Array1<f32>,
-    pub m_inv: Array1<f32>,
-    pub rad: Array1<f32>,
-    pub fx: Array1<f32>,
-    pub fy: Array1<f32>,
-    pub fz: Array1<f32>,
-    pub taux: Array1<f32>,
-    pub tauy: Array1<f32>,
-    pub tauz: Array1<f32>,
+    pub m: Vec<f32>,
+    pub x: Vec<f32>,
+    pub y: Vec<f32>,
+    pub z: Vec<f32>,
+    pub u: Vec<f32>,
+    pub v: Vec<f32>,
+    pub w: Vec<f32>,
+    pub omega_x: Vec<f32>,
+    pub omega_y: Vec<f32>,
+    pub omega_z: Vec<f32>,
+    pub inertia: Vec<f32>,
+    pub h: Vec<f32>,
+    pub m_inv: Vec<f32>,
+    pub rad: Vec<f32>,
+    pub fx: Vec<f32>,
+    pub fy: Vec<f32>,
+    pub fz: Vec<f32>,
+    pub taux: Vec<f32>,
+    pub tauy: Vec<f32>,
+    pub tauz: Vec<f32>,
     pub id: usize,
     pub name: String,
 }
@@ -34,26 +33,26 @@ impl DemDiscrete {
             len,
             name,
             id,
-            m: Array1::zeros(len),
-            x: Array1::zeros(len),
-            y: Array1::zeros(len),
-            z: Array1::zeros(len),
-            u: Array1::zeros(len),
-            v: Array1::zeros(len),
-            w: Array1::zeros(len),
-            omega_x: Array1::zeros(len),
-            omega_y: Array1::zeros(len),
-            omega_z: Array1::zeros(len),
-            inertia: Array1::zeros(len),
-            h: Array1::zeros(len),
-            m_inv: Array1::zeros(len),
-            rad: Array1::zeros(len),
-            fx: Array1::zeros(len),
-            fy: Array1::zeros(len),
-            fz: Array1::zeros(len),
-            tauz: Array1::zeros(len),
-            taux: Array1::zeros(len),
-            tauy: Array1::zeros(len),
+            m: vec![0.; len],
+            x: vec![0.; len],
+            y: vec![0.; len],
+            z: vec![0.; len],
+            u: vec![0.; len],
+            v: vec![0.; len],
+            w: vec![0.; len],
+            omega_x: vec![0.; len],
+            omega_y: vec![0.; len],
+            omega_z: vec![0.; len],
+            inertia: vec![0.; len],
+            h: vec![0.; len],
+            m_inv: vec![0.; len],
+            rad: vec![0.; len],
+            fx: vec![0.; len],
+            fy: vec![0.; len],
+            fz: vec![0.; len],
+            tauz: vec![0.; len],
+            taux: vec![0.; len],
+            tauy: vec![0.; len],
         }
     }
 }
@@ -71,13 +70,13 @@ impl NNPS for DemDiscrete{
         }
     }
 
-    fn get_x(&self) -> &Array1<f32> {
+    fn get_x(&self) -> &Vec<f32> {
         &self.x
     }
-    fn get_y(&self) -> &Array1<f32> {
+    fn get_y(&self) -> &Vec<f32> {
         &self.y
     }
-    fn get_z(&self) -> &Array1<f32> {
+    fn get_z(&self) -> &Vec<f32> {
         &self.z
     }
 }

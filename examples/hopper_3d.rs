@@ -1,5 +1,4 @@
 extern crate granules;
-extern crate ndarray;
 
 use granules::contact_search::LinkedListGrid;
 use granules::geometry::dam_break_3d_geometry;
@@ -7,7 +6,6 @@ use granules::physics::dem::DemDiscrete;
 use granules::physics::dem::equations::{body_force_dem, integrate, make_forces_zero,
                                         spring_force_other, spring_force_self};
 use granules::save_data::{create_output_directory, dump_output};
-use ndarray::prelude::*;
 
 pub struct SimulationData {
     pub grains_spacing: f32,
@@ -41,9 +39,9 @@ impl SimulationData {
 
 fn setup_particle_properties(
     part1: &mut DemDiscrete,
-    x: Array1<f32>,
-    y: Array1<f32>,
-    z: Array1<f32>,
+    x: Vec<f32>,
+    y: Vec<f32>,
+    z: Vec<f32>,
     h: f32,
     mass: f32,
 ) {
@@ -80,24 +78,26 @@ fn main() {
 
     setup_particle_properties(
         &mut grains,
-        Array::from_vec(xg),
-        Array::from_vec(yg),
-        Array::from_vec(zg),
+        xg,
+        yg,
+        zg,
         sim_data.grains_spacing / 2.,
         1000. * sim_data.grains_spacing.powf(2.),
     );
     setup_particle_properties(
         &mut tank,
-        Array::from_vec(xt),
-        Array::from_vec(yt),
-        Array::from_vec(zt),
+        xt,
+        yt,
+        zt,
         sim_data.tank_spacing / 2.,
         1000. * sim_data.tank_spacing.powf(2.),
     );
     // shift grains up
-    grains.x += 2.5;
-    grains.y += 1.5;
-    grains.z += 1.5;
+    for i in 0..grains.x.len(){
+        grains.x[i] += 2.5;
+        grains.y[i] += 1.5;
+        grains.z[i] += 1.5;
+    }
 
     let dt = 5e-4;
     let dim = 3;
