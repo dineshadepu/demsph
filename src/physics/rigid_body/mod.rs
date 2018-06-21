@@ -163,7 +163,7 @@ impl RigidBody {
         // Here I should use moment of inertial in global axis but at time t = 0
         // they both are equal
         self.ang_mom = (&self.mass_matrix_body
-                        * matrix![self.omega[0]; self.omega[1]; self.omega[2]])
+            * matrix![self.omega[0]; self.omega[1]; self.omega[2]])
             .into_vec();
     }
 }

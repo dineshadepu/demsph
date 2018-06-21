@@ -1,4 +1,5 @@
-use contact_search::{NNPS, NNPSMutParts};
+use contact_search::{NNPSMutParts, NNPS};
+use std::collections::HashMap;
 pub mod equations;
 
 pub struct DemDiscrete {
@@ -25,6 +26,7 @@ pub struct DemDiscrete {
     pub tauz: Vec<f32>,
     pub id: usize,
     pub name: String,
+    pub tang_overlap: Vec<HashMap<usize, HashMap<usize, Vec<f32>>>>,
 }
 
 impl DemDiscrete {
@@ -53,12 +55,12 @@ impl DemDiscrete {
             tauz: vec![0.; len],
             taux: vec![0.; len],
             tauy: vec![0.; len],
+            tang_overlap: vec![HashMap::new(); len],
         }
     }
 }
 
-
-impl NNPS for DemDiscrete{
+impl NNPS for DemDiscrete {
     fn get_parts_mut(&mut self) -> NNPSMutParts {
         NNPSMutParts {
             len: &mut self.len,

@@ -2,10 +2,10 @@ extern crate granules;
 
 use granules::contact_search::LinkedListGrid;
 use granules::geometry::get_3d_block;
+use granules::integrate::{RK2, integrate_stage1};
 use granules::physics::rigid_body::RigidBody;
 use granules::physics::rigid_body::equations::{body_force_rigid_body, make_forces_zero_rigid_body};
 use granules::save_data::{create_output_directory, dump_output};
-use granules::integrate::{RK2, integrate_stage1};
 
 pub struct SimulationData {
     pub cube_spacing: f32,

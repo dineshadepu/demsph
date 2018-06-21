@@ -1,4 +1,5 @@
 use super::RigidBody;
+use contact_search::{LinkedListGrid, get_neighbours_ll_2d, get_neighbours_ll_3d};
 use integrate::RK2;
 
 pub fn make_forces_zero_rigid_body(entities: &mut Vec<&mut RigidBody>) {
@@ -26,6 +27,71 @@ pub fn body_force_rigid_body(entities: &mut Vec<&mut RigidBody>, gx: f32, gy: f3
         entity.frc[0] = entity.m_total * gx;
         entity.frc[1] = entity.m_total * gy;
         entity.frc[2] = entity.m_total * gz;
+    }
+}
+
+pub fn spring_force_rigid_other(
+    destination: &mut RigidBody,
+    source: &mut RigidBody,
+    kn: f32,
+    grid: &LinkedListGrid,
+    dim: usize,
+) {
+    let get_nbrs = if dim == 3 {
+        get_neighbours_ll_3d
+    } else {
+        get_neighbours_ll_2d
+    };
+
+    for i in 0..destination.len {
+        let nbrs = get_nbrs(
+            [destination.x[i], destination.y[i], destination.z[i]],
+            &grid,
+            &source.id,
+        );
+
+        for sub_view in nbrs {
+            for &j in sub_view {
+                let dx = destination.x[i] - source.x[j];
+                let dy = destination.y[i] - source.y[j];
+                let dz = destination.z[i] - source.z[j];
+                let dist = (dx.powf(2.) + dy.powf(2.) + dz.powf(2.)).powf(0.5);
+                let overlap = destination.rad[i] + source.rad[j] - dist;
+                if overlap > 0. {
+                    let nx = dx / dist;
+                    let ny = dy / dist;
+                    let nz = dz / dist;
+                    // damping force in normal direction
+                    let du = destination.u[i] - source.u[j];
+                    let dv = destination.v[i] - source.v[j];
+                    let dw = destination.w[i] - source.w[j];
+                    let v_n = -(du * nx + dv * ny + dw * nz);
+
+                    destination.fx[i] += (kn * overlap + 1000. * v_n) * nx;
+                    destination.fy[i] += (kn * overlap + 1000. * v_n) * ny;
+                    destination.fz[i] += (kn * overlap + 1000. * v_n) * nz;
+                }
+            }
+        }
+    }
+}
+
+pub fn aggregate_forces_moments(entities: &mut Vec<&mut RigidBody>) {
+    for entity in entities {
+        for i in 0..entity.fx.len() {
+            // add the force on each particle to global force
+            entity.frc[0] += entity.fx[i];
+            entity.frc[1] += entity.fy[i];
+            entity.frc[2] += entity.fz[i];
+
+            // find the torque due to force on each particle
+            entity.tau[0] +=
+                entity.y_body_global[i] * entity.fz[i] - entity.z_body_global[i] * entity.fy[i];
+            entity.tau[1] +=
+                entity.z_body_global[i] * entity.fx[i] - entity.x_body_global[i] * entity.fz[i];
+            entity.tau[2] +=
+                entity.x_body_global[i] * entity.fy[i] - entity.y_body_global[i] * entity.fx[i];
+        }
     }
 }
 
@@ -60,7 +126,7 @@ impl RK2 for RigidBody {
         // that time, Lets update the angular velocity to next step using
         // these two
         self.omega = (&self.mass_matrix_body_inverse
-                      * matrix![self.ang_mom[0]; self.ang_mom[1]; self.ang_mom[2]])
+            * matrix![self.ang_mom[0]; self.ang_mom[1]; self.ang_mom[2]])
             .into_vec();
 
         // now update quantites of each particle
@@ -69,7 +135,7 @@ impl RK2 for RigidBody {
             // to particle in global axis would be
             let pos_global_i =
                 (&self.orientation * matrix![self.x_body[i]; self.y_body[i]; self.z_body[i]])
-                .into_vec();
+                    .into_vec();
             self.x_body_global[i] = pos_global_i[0];
             self.y_body_global[i] = pos_global_i[1];
             self.z_body_global[i] = pos_global_i[2];

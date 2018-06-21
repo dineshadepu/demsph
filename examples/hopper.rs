@@ -31,13 +31,7 @@ impl SimulationData {
     }
 }
 
-fn setup_particle_properties(
-    part1: &mut DemDiscrete,
-    x: Vec<f32>,
-    y: Vec<f32>,
-    h: f32,
-    mass: f32,
-) {
+fn setup_particle_properties(part1: &mut DemDiscrete, x: Vec<f32>, y: Vec<f32>, h: f32, mass: f32) {
     let m_inv = 1. / mass;
     for i in 0..part1.len {
         part1.x[i] = x[i];
