@@ -1,5 +1,6 @@
 use super::DemDiscrete;
 use contact_search::{LinkedListGrid, get_neighbours_ll_2d, get_neighbours_ll_3d};
+use std::collections::HashMap;
 
 pub fn make_forces_zero(entity: &mut DemDiscrete) {
     for i in 0..entity.len {
@@ -35,6 +36,7 @@ pub fn spring_force_self(
     entity: &mut DemDiscrete,
     kn: f32,
     mu: f32,
+    dt: f32,
     grid: &LinkedListGrid,
     dim: usize,
 ) {
@@ -99,6 +101,8 @@ pub fn spring_force_self(
                             let vt_x = du + nx * vndot;
                             let vt_y = dv + ny * vndot;
                             let vt_z = dw + nz * vndot;
+                            // let the tangential force be
+                            let mut ft = vec![0., 0., 0.];
                             // get the tangential spring connected from i to j.
                             // if no spring is available, that implies this is the
                             // first time interaction. So we will add a spring.
@@ -128,8 +132,6 @@ pub fn spring_force_self(
                                             delta_t[1] -= delta_t_dot_n * ny;
                                             delta_t[2] -= delta_t_dot_n * nz;
 
-                                            // let the tangential force be
-                                            let mut ft = vec![0., 0., 0.];
                                             // find the tangential force using the spring projected
                                             // onto current tangential plane
                                             // FIXME: Dissipation is needed to add
@@ -140,7 +142,7 @@ pub fn spring_force_self(
                                             ft_0[1] = -kn * delta_t[1] - disp * vt_y;
                                             ft_0[2] = -kn * delta_t[2] - disp * vt_z;
                                             let ft_0_magn = (ft_0[0].powf(2.) + ft_0[1].powf(2.)
-                                                + ft_0[2].powf(2.))
+                                                             + ft_0[2].powf(2.))
                                                 .sqrt();
                                             let norm_fn = fdotn.abs();
 
@@ -152,27 +154,102 @@ pub fn spring_force_self(
                                             let f_couloumb = mu * norm_fn;
 
                                             if ft_0_magn < f_couloumb {
-                                                ft[0] = ft_0[0];
-                                                ft[1] = ft_0[1];
-                                                ft[2] = ft_0[2];
+                                                // Add the tangential force to totoal tangential
+                                                // force of i due to j
+                                                ft[0] += ft_0[0];
+                                                ft[1] += ft_0[1];
+                                                ft[2] += ft_0[2];
+
+                                                // using the current velocity increment the the
+                                                // spring for next iteration.
+                                                // This is similar to integrating the position
+                                                // dt will depend on the stage of integrator.
+                                                // If we are in the first stage of RK2, then
+                                                // the time step will be dt / 2. So an appropriate
+                                                // time step is needed to be provided by the user.
+                                                delta_t[0] += vt_x * dt;
+                                                delta_t[1] += vt_y * dt;
+                                                delta_t[2] += vt_z * dt;
                                             } else {
-                                                ft[0] = f_couloumb * tx;
-                                                ft[1] = f_couloumb * ty;
-                                                ft[2] = f_couloumb * tz;
+                                                // Add the tangential force to totoal tangential
+                                                // force of i due to j
+                                                ft[0] += f_couloumb * tx;
+                                                ft[1] += f_couloumb * ty;
+                                                ft[2] += f_couloumb * tz;
 
                                                 // FIXME: Differentiate between slding and
                                                 // dynamic friction
 
                                                 // adjust the spring length to corresponding
                                                 // tangential force in dynamic friction
+                                                delta_t[0] = -f_couloumb * tx / kn;
+                                                delta_t[1] = -f_couloumb * ty / kn;
+                                                delta_t[2] = -f_couloumb * tz / kn;
                                             }
 
-                                            // use static friction coefficient to compare the force
+                                            // add
                                         }
-                                        false => {}
+                                        false => {
+                                            // since tangential overlap particle i of entity id,
+                                            // doesn't already have a contact with particle j of
+                                            // another entity
+                                            // We have to add such id to particle i's tangential
+                                            // overlap attribute
+                                            assert_eq!(
+                                                entity.tang_overlap[i]
+                                                    .get_mut(&entity.id)
+                                                    .unwrap()
+                                                    .insert(j, vec![0., 0., 0.]),
+                                                None
+                                            );
+                                            // Note: No force is computed as this is first time overlap
+
+                                            // increment the tangential overlap to next time step
+                                            // using the current velocity
+
+                                            let mut delta_t = &mut entity.tang_overlap[i]
+                                                .get_mut(&entity.id)
+                                                .unwrap()
+                                                .get_mut(&j)
+                                                .unwrap();
+                                            delta_t[0] += vt_x * dt;
+                                            delta_t[1] += vt_y * dt;
+                                            delta_t[2] += vt_z * dt;
+                                        }
                                     }
                                 }
-                                false => {}
+                                false => {
+                                    // this case implies that for particle i, there was never
+                                    // a connection to the entity
+
+                                    // so first we need to add the outer hashmap
+                                    assert_eq!(
+                                        entity.tang_overlap[i].insert(entity.id, HashMap::new()),
+                                        None
+                                    );
+                                    // now add the particle j to the list of
+                                    // entity of particle i
+                                    assert_eq!(
+                                        entity.tang_overlap[i]
+                                            .get_mut(&entity.id)
+                                            .unwrap()
+                                            .insert(j, vec![0., 0., 0.]),
+                                        None
+                                    );
+                                    // Note: No force is computed as this is first time overlap
+
+                                    // increment the tangential overlap to next time step
+                                    // using the current velocity
+
+                                    let mut delta_t = &mut entity.tang_overlap[i]
+                                        .get_mut(&entity.id)
+                                        .unwrap()
+                                        .get_mut(&j)
+                                        .unwrap();
+                                    delta_t[0] += vt_x * dt;
+                                    delta_t[1] += vt_y * dt;
+                                    delta_t[2] += vt_z * dt;
+                                }
                             }
                         }
 
@@ -183,6 +260,24 @@ pub fn spring_force_self(
                         // Since this element is not in overlap,
                         // remove it from the tangential tracking of the
                         // particles, if it is been tracked
+
+                        // check if the particle j is in the contact list
+                        // of particle i
+                        match entity.tang_overlap[i].contains_key(&entity.id) {
+                            true => {
+                                match entity.tang_overlap[i][&entity.id].contains_key(&j) {
+                                    true => {
+                                        // remove the particle j from tracking
+                                        let _deleted = entity.tang_overlap[i]
+                                            .get_mut(&entity.id)
+                                            .unwrap()
+                                            .remove(&j);
+                                    }
+                                    _ => {}
+                                }
+                            }
+                            _ => {}
+                        }
                     }
                 }
             }
