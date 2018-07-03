@@ -150,7 +150,8 @@ impl RigidBody {
             mom_of_ine[[2, 1]] = mom_of_ine[[1, 2]];
             // TODO: take inverse of the matrix
         }
-        self.mass_matrix_body_inverse = self.mass_matrix_body
+        self.mass_matrix_body_inverse = self
+            .mass_matrix_body
             .clone()
             .inverse()
             .expect("This matrix should have an inverse!");

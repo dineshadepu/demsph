@@ -1,5 +1,5 @@
 use super::RigidBody;
-use contact_search::{LinkedListGrid, get_neighbours_ll_2d, get_neighbours_ll_3d};
+use contact_search::{get_neighbours_ll_2d, get_neighbours_ll_3d, LinkedListGrid};
 use integrate::RK2;
 
 pub fn make_forces_zero_rigid_body(entities: &mut Vec<&mut RigidBody>) {

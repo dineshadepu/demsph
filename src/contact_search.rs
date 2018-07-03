@@ -248,3 +248,30 @@ pub fn get_neighbours_ll_2d<'a>(
     }
     neighbours_particle
 }
+
+pub fn compute_all_neighbours_2d<'a, T: NNPS>(
+    world: &'a mut Vec<&'a mut T>,
+    grid: &'a LinkedListGrid,
+) -> HashMap<&'a usize, Vec<HashMap<&'a usize, Vec<&'a Vec<usize>>>>> {
+    let cells = &grid.cells;
+    let mut all_neighbours = HashMap::new();
+
+    for entity in world {
+        // insert the id of entity in all neighbours
+        let dst = entity.get_parts_mut();
+        let dst_id: &usize = dst.id;
+        all_neighbours.insert(dst_id, Vec::new());
+
+        for i in 0..dst.x.len() {
+            let mut nbrs_i = HashMap::new();
+            // neighbours of particle i with src index is
+            for src_id in cells[0].indices.keys() {
+                let nbrs_src = get_neighbours_ll_2d([dst.x[i], dst.y[i], 0.], &grid, src_id);
+                nbrs_i.insert(src_id, nbrs_src);
+            }
+            all_neighbours.get_mut(dst_id).unwrap().push(nbrs_i);
+        }
+    }
+
+    all_neighbours
+}
