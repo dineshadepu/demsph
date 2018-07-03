@@ -1,4 +1,5 @@
 use contact_search::{NNPSMutParts, NNPS};
+use cm::Vector3;
 use std::collections::HashMap;
 pub mod equations;
 
@@ -36,7 +37,7 @@ pub struct DemDiscrete {
     pub tauz: Vec<f32>,
     pub id: usize,
     pub name: String,
-    pub tang_overlap: Vec<HashMap<usize, HashMap<usize, Vec<f32>>>>,
+    pub tang_overlap: Vec<HashMap<usize, HashMap<usize, Vector3<f32>>>>,
 }
 
 impl DemDiscrete {

@@ -3,10 +3,11 @@ extern crate granules;
 use granules::contact_search::LinkedListGrid;
 use granules::geometry::dam_break_3d_geometry;
 use granules::integrate::integrate_stage1;
+use granules::physics::rigid_body::equations::{
+    aggregate_forces_moments, body_force_rigid_body, make_forces_zero_rigid_body,
+    spring_force_rigid_other,
+};
 use granules::physics::rigid_body::RigidBody;
-use granules::physics::rigid_body::equations::{aggregate_forces_moments, body_force_rigid_body,
-                                               make_forces_zero_rigid_body,
-                                               spring_force_rigid_other};
 use granules::save_data::{create_output_directory, dump_output};
 
 pub struct SimulationData {

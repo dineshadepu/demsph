@@ -2,9 +2,11 @@ extern crate granules;
 
 use granules::contact_search::LinkedListGrid;
 use granules::geometry::dam_break_2d_geometry;
+use granules::integrate::{integrate_initialize, integrate_stage1, integrate_stage2};
+use granules::physics::dem::equations::{
+    body_force_dem, make_forces_zero, spring_force_other, spring_force_self,
+};
 use granules::physics::dem::DemDiscrete;
-use granules::physics::dem::equations::{body_force_dem, integrate, make_forces_zero,
-                                        spring_force_other, spring_force_self};
 use granules::save_data::{create_output_directory, dump_output};
 
 pub struct SimulationData {
@@ -74,7 +76,7 @@ fn main() {
         1000. * sim_data.tank_spacing.powf(2.),
     );
 
-    let dt = 1e-4;
+    let dt = 1e-3;
     let dim = 2;
     let tf = 2.;
     let mut time_step_number = 0;
@@ -85,11 +87,12 @@ fn main() {
 
     while t < tf {
         let grid = LinkedListGrid::new(&mut vec![&mut grains, &mut tank], scale);
+        integrate_initialize(&mut vec![&mut grains], dt);
         make_forces_zero(&mut grains);
         body_force_dem(&mut grains, 0., -9.81, 0.);
         spring_force_self(&mut grains, 1e7, 0.4, dt, &grid, dim);
         spring_force_other(&mut grains, &mut tank, 1e7, &grid, dim);
-        integrate(&mut grains, dt);
+        integrate_stage1(&mut vec![&mut grains], dt);
         t = t + dt;
         if time_step_number % 100 == 0 {
             println!("{:?}", time_step_number);

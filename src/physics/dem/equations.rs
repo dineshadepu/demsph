@@ -71,6 +71,7 @@ pub fn relative_velocity(
 ) -> Vector3<f32> {
     vi - vj + (rad_i * ang_v_i + rad_j * ang_v_j).cross(nij)
 }
+
 /// Linear dashpot model introduced by Cundall and Strack.
 pub fn linear_viscoelastic_model_other_dem(
     dst: &mut DemDiscrete,
@@ -142,24 +143,65 @@ pub fn linear_viscoelastic_model_other_dem(
                 else {
                     // get the history of all particles being tracked by
                     // particle i
-                    let hist = &mut dst.tang_overlap;
+                    let hist = &mut dst.tang_overlap[i];
 
-                    // the variable above (hist) is an array. Each element
-                    // contains information of particles it is in contact
+                    // -------------------------------------------------
+                    // Tangential overlap variable explanation
+                    // -------------------------------------------------
+
+                    // the variable above (hist) contains particles already in
+                    // overlap.
 
                     // The particle i's neighbours looks like
 
-                    // hist[9] = {'0': {'2': Vector3, '31': Vector3, '7': Vector3},
+                    // hist = {'0': {'2': Vector3, '31': Vector3, '7': Vector3},
                     //           '1': {'3': Vector3, '5': Vector3, '9': Vector3}}
 
                     // The meaning of above format is, particle i is is already
-                    // contact with an entity with id '0' and '1'.
+                    // contact with an entities with id's '0' and '1'.
 
                     // diving little deep gives us the indices of those entites
                     // as, particle of index '9' has neighbours [2, 31, 7] of
                     // entity '0'. And also has neighbours [3, 5, 9] of entity
                     // '1'.
 
+                    // So the type of hist would be
+                    // Vec<HashMap<usize, HashMap<usize, Vector3>>>
+                    // -------------------------------------------------
+                    // Tangential overlap variable explanation
+                    // -------------------------------------------------
+
+                    // Find the index j in hist of particle i with id of
+                    // src.id
+
+                    // If j is already been tracked then remove it
+                    // If it is not been tracked then leave hist alone
+
+                    // Note: To do this operatio I am using match
+                    // match is provided by rust and it's awesome
+
+                    // this leaf is to check if the particle i has history
+                    // with the src
+                    match hist.contains_key(&src.id) {
+                        // If it has neighbours with src, then
+                        // go ahead and check if it is tracking particle j
+                        true => {
+                            match hist[&src.id].contains_key(&j) {
+                                // If it has particle j
+                                // remove it
+                                true => {
+                                    hist.get_mut(&src.id).unwrap().remove(&j);
+                                }
+
+                                // if it doesn't have particle index j, then
+                                // leave it alone
+                                false => {}
+                            };
+                        }
+
+                        // if it doesn't have src id, then leave it alone
+                        false => {}
+                    };
                 }
             }
         }
@@ -276,8 +318,8 @@ pub fn spring_force_self(
                                             ft_0[1] = -kn * delta_t[1] - disp * vt_y;
                                             ft_0[2] = -kn * delta_t[2] - disp * vt_z;
                                             let ft_0_magn = (ft_0[0].powf(2.)
-                                                + ft_0[1].powf(2.)
-                                                + ft_0[2].powf(2.))
+                                                             + ft_0[1].powf(2.)
+                                                             + ft_0[2].powf(2.))
                                                 .sqrt();
                                             let norm_fn = fdotn.abs();
 
@@ -334,7 +376,7 @@ pub fn spring_force_self(
                                                 entity.tang_overlap[i]
                                                     .get_mut(&entity.id)
                                                     .unwrap()
-                                                    .insert(j, vec![0., 0., 0.]),
+                                                    .insert(j, Vector3::new(0., 0., 0.)),
                                                 None
                                             );
                                             // Note: No force is computed as this is first time overlap
@@ -368,7 +410,7 @@ pub fn spring_force_self(
                                         entity.tang_overlap[i]
                                             .get_mut(&entity.id)
                                             .unwrap()
-                                            .insert(j, vec![0., 0., 0.]),
+                                            .insert(j, Vector3::new(0., 0., 0.)),
                                         None
                                     );
                                     // Note: No force is computed as this is first time overlap
