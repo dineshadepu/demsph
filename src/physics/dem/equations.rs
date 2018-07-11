@@ -1,6 +1,6 @@
 use super::DemDiscrete;
-use cm::{InnerSpace, Vector3};
-use contact_search::{get_neighbours_ll_2d, get_neighbours_ll_3d, LinkedListGrid};
+use cm::{InnerSpace, Vector3 as V3, dot, Zero};
+use contact_search::{LinkedListGrid, get_neighbours_ll_2d, get_neighbours_ll_3d};
 use integrate::RK2;
 use math::unit_vector_from_dx;
 use std::collections::HashMap;
@@ -61,14 +61,14 @@ pub fn body_force_dem(entity: &mut DemDiscrete, gx: f32, gy: f32, gz: f32) {
 /// assert_eq!(vec_compare(&rel_v, &expected), true);
 /// ```
 pub fn relative_velocity(
-    vi: Vector3<f32>,
-    vj: Vector3<f32>,
-    ang_v_i: Vector3<f32>,
-    ang_v_j: Vector3<f32>,
-    nij: Vector3<f32>,
+    vi: V3<f32>,
+    vj: V3<f32>,
+    ang_v_i: V3<f32>,
+    ang_v_j: V3<f32>,
+    nij: V3<f32>,
     rad_i: f32,
     rad_j: f32,
-) -> Vector3<f32> {
+) -> V3<f32> {
     vi - vj + (rad_i * ang_v_i + rad_j * ang_v_j).cross(nij)
 }
 
@@ -92,11 +92,11 @@ pub fn linear_viscoelastic_model_other_dem(
     // Select the neighbours function according to the dimention
     for i in 0..dst.len {
         // position of particle i
-        let pos_i = Vector3::new(dst.x[i], dst.y[i], dst.z[i]);
+        let pos_i = V3::new(dst.x[i], dst.y[i], dst.z[i]);
         // linear velocity of particle i
-        let vel_i = Vector3::new(dst.u[i], dst.v[i], dst.w[i]);
+        let vel_i = V3::new(dst.u[i], dst.v[i], dst.w[i]);
         // angular velocity of particle i
-        let ang_vel_i = Vector3::new(dst.omega_x[i], dst.omega_y[i], dst.omega_z[i]);
+        let ang_vel_i = V3::new(dst.omega_x[i], dst.omega_y[i], dst.omega_z[i]);
 
         let nbrs = get_nbrs([dst.x[i], dst.y[i], dst.z[i]], &grid, &src.id);
 
@@ -104,11 +104,11 @@ pub fn linear_viscoelastic_model_other_dem(
             // neighbour indices j
             for &j in sub_view {
                 // position of particle j in source
-                let pos_j = Vector3::new(src.x[j], src.y[j], src.z[j]);
+                let pos_j = V3::new(src.x[j], src.y[j], src.z[j]);
                 // velocity of particle j
-                let vel_j = Vector3::new(src.u[j], src.v[j], src.w[j]);
+                let vel_j = V3::new(src.u[j], src.v[j], src.w[j]);
                 // angular velocity of particle j
-                let ang_vel_j = Vector3::new(src.omega_x[j], src.omega_y[j], src.omega_z[j]);
+                let ang_vel_j = V3::new(src.omega_x[j], src.omega_y[j], src.omega_z[j]);
 
                 // find the unit vector from i to j
                 let dx = pos_j.x - pos_i.x;
@@ -120,7 +120,13 @@ pub fn linear_viscoelastic_model_other_dem(
 
                 // relative velocity
                 let v_ij = relative_velocity(
-                    vel_i, vel_j, ang_vel_i, ang_vel_j, nij, dst.rad[i], src.rad[j],
+                    vel_i,
+                    vel_j,
+                    ang_vel_i,
+                    ang_vel_j,
+                    nij,
+                    dst.rad[i],
+                    src.rad[j],
                 ); // this is vector
 
                 // relative  normal velocity
@@ -209,7 +215,7 @@ pub fn linear_viscoelastic_model_other_dem(
 }
 
 pub fn spring_force_self(
-    entity: &mut DemDiscrete,
+    e: &mut DemDiscrete,
     kn: f32,
     mu: f32,
     dt: f32,
@@ -222,51 +228,51 @@ pub fn spring_force_self(
         get_neighbours_ll_2d
     };
 
-    for i in 0..entity.len {
-        let nbrs = get_nbrs([entity.x[i], entity.y[i], entity.z[i]], &grid, &entity.id);
+    for i in 0..e.len {
+        let nbrs = get_nbrs([e.x[i], e.y[i], e.z[i]], &grid, &e.id);
 
         for sub_view in nbrs {
             for &j in sub_view {
                 if i != j {
-                    let dx = entity.x[i] - entity.x[j];
-                    let dy = entity.y[i] - entity.y[j];
-                    let dz = entity.z[i] - entity.z[j];
+                    let dx = e.x[i] - e.x[j];
+                    let dy = e.y[i] - e.y[j];
+                    let dz = e.z[i] - e.z[j];
                     let dist = (dx.powf(2.) + dy.powf(2.) + dz.powf(2.)).powf(0.5);
-                    let overlap = entity.rad[i] + entity.rad[j] - dist;
+                    let overlap = e.rad[i] + e.rad[j] - dist;
 
                     if overlap > 0. {
                         // force on i due to j
-                        let mut fij_x = 0.;
-                        let mut fij_y = 0.;
-                        let mut fij_z = 0.;
-                        let nx = dx / dist;
-                        let ny = dy / dist;
-                        let nz = dz / dist;
+                        let mut fij = V3::new(0., 0., 0.);
+                        // normal vector from j to i -> n_ij
+                        let nij = V3::new(dx / dist, dy / dist, dz / dist);
 
-                        // relative velocity of contact point w.r.t particle j
-                        let alpha_i = entity.rad[i] - overlap / 2.;
-                        let alpha_j = entity.rad[j] - overlap / 2.;
-                        let du = entity.u[i] - entity.u[j]
-                            + alpha_i * (ny * entity.omega_z[i] - nz * entity.omega_y[i])
-                            + alpha_j * (ny * entity.omega_z[j] - nz * entity.omega_y[j]);
-                        let dv = entity.v[i] - entity.v[j]
-                            + alpha_i * (nz * entity.omega_x[i] - nx * entity.omega_z[i])
-                            + alpha_j * (nz * entity.omega_z[j] - nx * entity.omega_y[j]);
-                        let dw = entity.w[i] - entity.w[j]
-                            + alpha_i * (nx * entity.omega_y[i] - ny * entity.omega_x[i])
-                            + alpha_j * (nx * entity.omega_y[j] - ny * entity.omega_x[j]);
+                        // angular velocity of particle i and j
+                        let ang_i = V3::new(e.omega_x[i], e.omega_y[i], e.omega_z[i]);
+                        let ang_j = V3::new(e.omega_x[j], e.omega_y[j], e.omega_z[j]);
 
-                        let vndot = -(du * nx + dv * ny + dw * nz);
+                        // -----------------------------
+                        // relative velocity of contact point of i w.r.t particle j
+                        // Reduced radius from overlap is
+                        let alpha_i = e.rad[i] - overlap / 2.;
+                        let alpha_j = e.rad[j] - overlap / 2.;
+
+                        // cross product of angular velocity with normal
+                        let ang_cross_n = nij.cross(alpha_i * ang_i + alpha_j * ang_j);
+
+                        // relative velocity vij
+                        let vij = V3::new(e.u[i], e.v[i], e.w[i])
+                            - V3::new(e.u[j], e.v[j], e.w[j])
+                            + ang_cross_n;
+
+                        let vndot = - dot(vij, nij);
 
                         // compute normal force due to j on i
                         // use linear force model
                         // contact force in normal direction
-                        let fdotn = kn * overlap;
+                        let fdotn = kn * overlap + 0.001 * vndot;
 
                         // add normal contact force to total contact force
-                        fij_x += fdotn * nx;
-                        fij_y += fdotn * ny;
-                        fij_z += fdotn * nz;
+                        fij += fdotn * nij;
 
                         // ----------------------------
                         // Tangential force computation
@@ -274,22 +280,21 @@ pub fn spring_force_self(
                         // No friction means no tangential force computation
                         if mu != 0. {
                             // find the relative tangential velocity
-                            let vt_x = du + nx * vndot;
-                            let vt_y = dv + ny * vndot;
-                            let vt_z = dw + nz * vndot;
+                            let vt = vij + nij * vndot;
                             // let the tangential force be
-                            let mut ft = vec![0., 0., 0.];
+                            let mut ft:V3<f32> = V3::zero();
+
                             // get the tangential spring connected from i to j.
                             // if no spring is available, that implies this is the
                             // first time interaction. So we will add a spring.
 
                             // check if the particle at index has the corresponding
-                            // source id
-                            match entity.tang_overlap[i].contains_key(&entity.id) {
+                            // source (entities) id
+                            match e.tang_overlap[i].contains_key(&e.id) {
                                 true => {
                                     // now check if particle j is there in the list
                                     // of tangential overlaps
-                                    match entity.tang_overlap[i][&entity.id].contains_key(&j) {
+                                    match e.tang_overlap[i][&e.id].contains_key(&j) {
                                         true => {
                                             // this implies that the particle j is already in contact
                                             // with particle i
@@ -297,30 +302,22 @@ pub fn spring_force_self(
                                             // j spring connected to i
 
                                             // first project the tangential spring onto the current plane
-                                            let mut delta_t = &mut entity.tang_overlap[i]
-                                                .get_mut(&entity.id)
+                                            let mut delta_t = &mut e.tang_overlap[i]
+                                                .get_mut(&e.id)
                                                 .unwrap()
                                                 .get_mut(&j)
                                                 .unwrap();
-                                            let delta_t_dot_n =
-                                                delta_t[0] * nx + delta_t[1] * ny + delta_t[2] * nz;
-                                            delta_t[0] -= delta_t_dot_n * nx;
-                                            delta_t[1] -= delta_t_dot_n * ny;
-                                            delta_t[2] -= delta_t_dot_n * nz;
+                                            let delta_t_dot_n = dot(**delta_t, nij);
+                                            **delta_t -= delta_t_dot_n * nij;
 
                                             // find the tangential force using the spring projected
                                             // onto current tangential plane
                                             // FIXME: Dissipation is needed to add
-                                            let mut ft_0 = vec![0., 0., 0.];
+                                            let mut ft_0 = V3::zero();
                                             // temporary dissipation coefficient
                                             let disp = 10.;
-                                            ft_0[0] = -kn * delta_t[0] - disp * vt_x;
-                                            ft_0[1] = -kn * delta_t[1] - disp * vt_y;
-                                            ft_0[2] = -kn * delta_t[2] - disp * vt_z;
-                                            let ft_0_magn = (ft_0[0].powf(2.)
-                                                             + ft_0[1].powf(2.)
-                                                             + ft_0[2].powf(2.))
-                                                .sqrt();
+                                            ft_0 = -kn * **delta_t - disp * vt;
+                                            let ft_0_magn = ft_0.magnitude();
                                             let norm_fn = fdotn.abs();
 
                                             // tangential direction will be
@@ -344,9 +341,7 @@ pub fn spring_force_self(
                                                 // If we are in the first stage of RK2, then
                                                 // the time step will be dt / 2. So an appropriate
                                                 // time step is needed to be provided by the user.
-                                                delta_t[0] += vt_x * dt;
-                                                delta_t[1] += vt_y * dt;
-                                                delta_t[2] += vt_z * dt;
+                                                **delta_t += vt * dt;
                                             } else {
                                                 // Add the tangential force to totoal tangential
                                                 // force of i due to j
@@ -367,16 +362,16 @@ pub fn spring_force_self(
                                             // add
                                         }
                                         false => {
-                                            // since tangential overlap particle i of entity id,
+                                            // since tangential overlap particle i of e id,
                                             // doesn't already have a contact with particle j of
-                                            // another entity
+                                            // another e
                                             // We have to add such id to particle i's tangential
                                             // overlap attribute
                                             assert_eq!(
-                                                entity.tang_overlap[i]
-                                                    .get_mut(&entity.id)
+                                                e.tang_overlap[i]
+                                                    .get_mut(&e.id)
                                                     .unwrap()
-                                                    .insert(j, Vector3::new(0., 0., 0.)),
+                                                    .insert(j, V3::new(0., 0., 0.)),
                                                 None
                                             );
                                             // Note: No force is computed as this is first time overlap
@@ -384,33 +379,31 @@ pub fn spring_force_self(
                                             // increment the tangential overlap to next time step
                                             // using the current velocity
 
-                                            let mut delta_t = &mut entity.tang_overlap[i]
-                                                .get_mut(&entity.id)
+                                            let mut delta_t = &mut e.tang_overlap[i]
+                                                .get_mut(&e.id)
                                                 .unwrap()
                                                 .get_mut(&j)
                                                 .unwrap();
-                                            delta_t[0] += vt_x * dt;
-                                            delta_t[1] += vt_y * dt;
-                                            delta_t[2] += vt_z * dt;
+                                            **delta_t += vt * dt;
                                         }
                                     }
                                 }
                                 false => {
                                     // this case implies that for particle i, there was never
-                                    // a connection to the entity
+                                    // a connection to the e
 
                                     // so first we need to add the outer hashmap
                                     assert_eq!(
-                                        entity.tang_overlap[i].insert(entity.id, HashMap::new()),
+                                        e.tang_overlap[i].insert(e.id, HashMap::new()),
                                         None
                                     );
                                     // now add the particle j to the list of
-                                    // entity of particle i
+                                    // e of particle i
                                     assert_eq!(
-                                        entity.tang_overlap[i]
-                                            .get_mut(&entity.id)
+                                        e.tang_overlap[i]
+                                            .get_mut(&e.id)
                                             .unwrap()
-                                            .insert(j, Vector3::new(0., 0., 0.)),
+                                            .insert(j, V3::new(0., 0., 0.)),
                                         None
                                     );
                                     // Note: No force is computed as this is first time overlap
@@ -418,21 +411,19 @@ pub fn spring_force_self(
                                     // increment the tangential overlap to next time step
                                     // using the current velocity
 
-                                    let mut delta_t = &mut entity.tang_overlap[i]
-                                        .get_mut(&entity.id)
+                                    let mut delta_t = &mut e.tang_overlap[i]
+                                        .get_mut(&e.id)
                                         .unwrap()
                                         .get_mut(&j)
                                         .unwrap();
-                                    delta_t[0] += vt_x * dt;
-                                    delta_t[1] += vt_y * dt;
-                                    delta_t[2] += vt_z * dt;
+                                    **delta_t += vt * dt;
                                 }
                             }
                         }
 
-                        entity.fx[i] += fij_x;
-                        entity.fy[i] += fij_y;
-                        entity.fz[i] += fij_z;
+                        e.fx[i] += fij[0];
+                        e.fy[i] += fij[1];
+                        e.fz[i] += fij[2];
                     } else {
                         // Since this element is not in overlap,
                         // remove it from the tangential tracking of the
@@ -440,15 +431,13 @@ pub fn spring_force_self(
 
                         // check if the particle j is in the contact list
                         // of particle i
-                        match entity.tang_overlap[i].contains_key(&entity.id) {
+                        match e.tang_overlap[i].contains_key(&e.id) {
                             true => {
-                                match entity.tang_overlap[i][&entity.id].contains_key(&j) {
+                                match e.tang_overlap[i][&e.id].contains_key(&j) {
                                     true => {
                                         // remove the particle j from tracking
-                                        let _deleted = entity.tang_overlap[i]
-                                            .get_mut(&entity.id)
-                                            .unwrap()
-                                            .remove(&j);
+                                        let _deleted =
+                                            e.tang_overlap[i].get_mut(&e.id).unwrap().remove(&j);
                                     }
                                     _ => {}
                                 }
