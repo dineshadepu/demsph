@@ -4,7 +4,7 @@ use granules::contact_search::LinkedListGrid;
 use granules::geometry::dam_break_2d_geometry;
 use granules::integrate::{integrate_initialize, integrate_stage1, integrate_stage2};
 use granules::physics::dem::equations::{
-    body_force_dem, make_forces_zero, spring_force_other, spring_force_self,
+    body_force_dem, linear_viscoelastic_model_other_dem, make_forces_zero,
 };
 use granules::physics::dem::DemDiscrete;
 use granules::save_data::{create_output_directory, dump_output};
@@ -87,12 +87,26 @@ fn main() {
 
     while t < tf {
         let grid = LinkedListGrid::new(&mut vec![&mut grains, &mut tank], scale);
+        // initialize the components
         integrate_initialize(&mut vec![&mut grains], dt);
+
+        // Compute the forces
         make_forces_zero(&mut grains);
         body_force_dem(&mut grains, 0., -9.81, 0.);
-        spring_force_self(&mut grains, 1e7, 0.4, dt, &grid, dim);
-        spring_force_other(&mut grains, &mut tank, 1e7, &grid, dim);
+        linear_viscoelastic_model_other_dem(&mut grains, &mut tank, 1e7, 0.4, dt, &grid, dim);
+
+        // Execulte stage 1
         integrate_stage1(&mut vec![&mut grains], dt);
+
+        // Compute the forces
+        make_forces_zero(&mut grains);
+        body_force_dem(&mut grains, 0., -9.81, 0.);
+        linear_viscoelastic_model_other_dem(&mut grains, &mut tank, 1e7, 0.4, dt, &grid, dim);
+
+        // Execulte stage 2
+        integrate_stage2(&mut vec![&mut grains], dt);
+
+        // increase the time
         t = t + dt;
         if time_step_number % 100 == 0 {
             println!("{:?}", time_step_number);

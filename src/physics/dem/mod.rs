@@ -37,7 +37,8 @@ pub struct DemDiscrete {
     pub tauz: Vec<f32>,
     pub id: usize,
     pub name: String,
-    pub tang_overlap: Vec<HashMap<usize, HashMap<usize, Vector3<f32>>>>,
+    pub tang_history: Vec<HashMap<usize, HashMap<usize, Vector3<f32>>>>,
+    pub tang_history0: Vec<HashMap<usize, HashMap<usize, Vector3<f32>>>>,
 }
 
 impl DemDiscrete {
@@ -76,7 +77,8 @@ impl DemDiscrete {
             tauz: vec![0.; len],
             taux: vec![0.; len],
             tauy: vec![0.; len],
-            tang_overlap: vec![HashMap::new(); len],
+            tang_history: vec![HashMap::new(); len],
+            tang_history0: vec![HashMap::new(); len],
         }
     }
 }
