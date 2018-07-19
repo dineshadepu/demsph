@@ -1,5 +1,5 @@
 [package]
-name = "granules-rs"
+name = "demsph"
 version = "0.1.0"
 authors = ["dineshadepu <adepu.dinesh.a@gmail.com>"]
 license = "MIT"
@@ -18,5 +18,5 @@ ndarray="0.11"
 
 
 [lib]
-name = "granules"
+name = "demsph"
 path = "src/lib.rs"

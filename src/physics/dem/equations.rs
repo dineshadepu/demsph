@@ -1,4 +1,4 @@
-use super::DemDiscrete;
+use super::{DemDiscrete, DemDiscreteDstTrait, DemDiscreteSrcTrait};
 use cm::{dot, InnerSpace, Vector3 as V3, Zero};
 use contact_search::{LinkedListGrid, get_neighbours_ll_2d, get_neighbours_ll_3d};
 use integrate::RK2;
@@ -73,16 +73,19 @@ pub fn relative_velocity(
 }
 
 /// Linear dashpot model introduced by Cundall and Strack.
-pub fn linear_viscoelastic_model_other_dem(
-    dst: &mut DemDiscrete,
-    src: &mut DemDiscrete,
+pub fn linear_viscoelastic_model_dem_other<T, U>(
+    dst: &mut T,
+    src: &mut U,
     kn: f32,
     mu: f32,
     dt: f32,
     stage: usize,
     grid: &LinkedListGrid,
     dim: usize,
-) {
+) where
+    T: DemDiscreteDstTrait,
+    U: DemDiscreteSrcTrait,
+{
     // Select the neighbours function according to the dimention
     let get_nbrs = if dim == 3 {
         get_neighbours_ll_3d
@@ -90,35 +93,38 @@ pub fn linear_viscoelastic_model_other_dem(
         get_neighbours_ll_2d
     };
 
-    // Select the neighbours function according to the dimention
-    for i in 0..dst.len {
-        // position of particle i
-        let pos_i = V3::new(dst.x[i], dst.y[i], dst.z[i]);
-        // linear velocity of particle i
-        let vel_i = V3::new(dst.u[i], dst.v[i], dst.w[i]);
-        // angular velocity of particle i
-        let ang_vel_i = V3::new(dst.omega_x[i], dst.omega_y[i], dst.omega_z[i]);
+    let dest = dst.get_parts_mut();
+    let srce = src.get_parts_mut();
 
-        let nbrs = get_nbrs([dst.x[i], dst.y[i], dst.z[i]], &grid, &src.id);
+    // Select the neighbours function according to the dimention
+    for i in 0..*dest.len {
+        // position of particle i
+        let pos_i = V3::new(dest.x[i], dest.y[i], dest.z[i]);
+        // linear velocity of particle i
+        let vel_i = V3::new(dest.u[i], dest.v[i], dest.w[i]);
+        // angular velocity of particle i
+        let ang_vel_i = V3::new(dest.omega_x[i], dest.omega_y[i], dest.omega_z[i]);
+
+        let nbrs = get_nbrs([dest.x[i], dest.y[i], dest.z[i]], &grid, &srce.id);
 
         for sub_view in nbrs {
             // neighbour indices j
             for &j in sub_view {
                 // position of particle j in source
-                let pos_j = V3::new(src.x[j], src.y[j], src.z[j]);
+                let pos_j = V3::new(srce.x[j], srce.y[j], srce.z[j]);
                 // velocity of particle j
-                let vel_j = V3::new(src.u[j], src.v[j], src.w[j]);
+                let vel_j = V3::new(srce.u[j], srce.v[j], srce.w[j]);
                 // angular velocity of particle j
-                let ang_vel_j = V3::new(src.omega_x[j], src.omega_y[j], src.omega_z[j]);
+                let ang_vel_j = V3::new(srce.omega_x[j], srce.omega_y[j], srce.omega_z[j]);
 
-                // find the unit vector from i to j
-                let dx = pos_j.x - pos_i.x;
-                let dy = pos_j.y - pos_i.y;
-                let dz = pos_j.z - pos_i.z;
+                // find the unit vector from j to i
+                let dx = pos_i.x - pos_j.x;
+                let dy = pos_i.y - pos_j.y;
+                let dz = pos_i.z - pos_j.z;
 
                 let distance = (dx.powf(2.) + dy.powf(2.) + dz.powf(2.)).sqrt();
                 // radius sum
-                let radsum = dst.rad[i] + src.rad[j];
+                let radsum = dest.rad[i] + srce.rad[j];
 
                 // overlap amount
                 let delta_n = radsum - distance;
@@ -140,8 +146,8 @@ pub fn linear_viscoelastic_model_other_dem(
                         ang_vel_i,
                         ang_vel_j,
                         nij,
-                        dst.rad[i],
-                        src.rad[j],
+                        dest.rad[i],
+                        srce.rad[j],
                     ); // this is vector
 
                     // relative  normal velocity
@@ -164,7 +170,7 @@ pub fn linear_viscoelastic_model_other_dem(
                         // If tangential forces are present
                         // get the history of all particles being tracked by
                         // particle i
-                        let hist = &mut dst.tang_history[i];
+                        let hist = &mut dest.tang_history[i];
 
                         // -------------------------------------------------
                         // Tangential overlap variable explanation
@@ -193,7 +199,7 @@ pub fn linear_viscoelastic_model_other_dem(
                         // -------------------------------------------------
 
                         // Find the index j in hist of particle i with id of
-                        // src.id
+                        // srce.id
 
                         // If j is already been tracked then remove it
                         // If it is not been tracked then leave hist alone
@@ -202,19 +208,19 @@ pub fn linear_viscoelastic_model_other_dem(
                         // match is provided by rust and it's awesome
 
                         // this leaf is to check if the particle i has history
-                        // with the src entity
-                        match hist.contains_key(&src.id) {
-                            // If it has neighbours with src, then
+                        // with the srce entity
+                        match hist.contains_key(&srce.id) {
+                            // If it has neighbours with srce, then
                             // go ahead and check if it is tracking particle j
                             true => {
-                                match hist[&src.id].contains_key(&j) {
+                                match hist[&srce.id].contains_key(&j) {
                                     // If it already has particle j
                                     // Then find the force due to its current
                                     // tangential spring elongation
                                     true => {
                                         // Get the spring
                                         let mut tang_overlap =
-                                            hist.get_mut(&src.id).unwrap().get_mut(&j).unwrap();
+                                            hist.get_mut(&srce.id).unwrap().get_mut(&j).unwrap();
 
                                         // Now project the spring onto current tangential plane
                                         // http://www.piko.ovgu.de/piko_media/aktuelles/Siegen/LUDING2012PIKO_Contacts.pdf
@@ -247,9 +253,9 @@ pub fn linear_viscoelastic_model_other_dem(
                                             } else if stage == 2 {
                                                 // use the tangential overlap at time t i.e., tang_overlap0
                                                 // project it onto current orientaton, i.e., t + dt / 2
-                                                let hist0 = &mut dst.tang_history0[i];
+                                                let hist0 = &mut dest.tang_history0[i];
                                                 let tang_overlap0 = hist0
-                                                    .get_mut(&src.id)
+                                                    .get_mut(&srce.id)
                                                     .unwrap()
                                                     .get_mut(&j)
                                                     .unwrap();
@@ -274,9 +280,9 @@ pub fn linear_viscoelastic_model_other_dem(
                                             } else if stage == 2 {
                                                 // use the tangential overlap at time t i.e., tang_overlap0
                                                 // project it onto current orientaton, i.e., t + dt / 2
-                                                let hist0 = &mut dst.tang_history0[i];
+                                                let hist0 = &mut dest.tang_history0[i];
                                                 let tang_overlap0 = hist0
-                                                    .get_mut(&src.id)
+                                                    .get_mut(&srce.id)
                                                     .unwrap()
                                                     .get_mut(&j)
                                                     .unwrap();
@@ -300,10 +306,10 @@ pub fn linear_viscoelastic_model_other_dem(
 
                                         if stage == 1 {
                                             let tang_overlap = v_t * dt;
-                                            hist.get_mut(&src.id).unwrap().insert(j, tang_overlap);
-                                            let hist0 = &mut dst.tang_history0[i];
+                                            hist.get_mut(&srce.id).unwrap().insert(j, tang_overlap);
+                                            let hist0 = &mut dest.tang_history0[i];
                                             hist0
-                                                .get_mut(&src.id)
+                                                .get_mut(&srce.id)
                                                 .unwrap()
                                                 .insert(j, tang_overlap0);
                                         } else if stage == 2 {
@@ -311,26 +317,29 @@ pub fn linear_viscoelastic_model_other_dem(
                                             // since this is first time contact there won't
                                             // be any force calculation
                                             let tang_overlap = v_t * dt;
-                                            hist.get_mut(&src.id).unwrap().insert(j, tang_overlap);
-                                            let hist0 = &mut dst.tang_history0[i];
+                                            hist.get_mut(&srce.id).unwrap().insert(j, tang_overlap);
+                                            let hist0 = &mut dest.tang_history0[i];
                                             // Note the difference between stage 1 and stage 2
-                                            hist0.get_mut(&src.id).unwrap().insert(j, tang_overlap);
+                                            hist0
+                                                .get_mut(&srce.id)
+                                                .unwrap()
+                                                .insert(j, tang_overlap);
                                         }
                                     }
                                 };
                             }
 
-                            // if it doesn't have src id, add the src id
+                            // if it doesn't have srce id, add the srce id
                             false => {
-                                // add src id as source to tangential history
-                                hist.insert(src.id, HashMap::new());
+                                // add srce id as source to tangential history
+                                hist.insert(*srce.id, HashMap::new());
 
                                 // And also in the temporary history
-                                let hist0 = &mut dst.tang_history0[i];
-                                hist0.insert(src.id, HashMap::new());
+                                let hist0 = &mut dest.tang_history0[i];
+                                hist0.insert(*srce.id, HashMap::new());
 
                                 // ------------------------------------
-                                // now add the particle j in src_d hashmap
+                                // now add the particle j in srce_d hashmap
 
                                 // create tangential_overlap0 and tangential_overlap
                                 let tang_overlap0 = V3::zero();
@@ -343,30 +352,33 @@ pub fn linear_viscoelastic_model_other_dem(
 
                                 if stage == 1 {
                                     let tang_overlap = v_t * dt;
-                                    hist.get_mut(&src.id).unwrap().insert(j, tang_overlap);
-                                    hist0.get_mut(&src.id).unwrap().insert(j, tang_overlap0);
+                                    hist.get_mut(&srce.id).unwrap().insert(j, tang_overlap);
+                                    hist0.get_mut(&srce.id).unwrap().insert(j, tang_overlap0);
                                 } else if stage == 2 {
                                     // use the tangential overlap at time t i.e., tang_overlap0
                                     // since this is first time contact there won't
                                     // be any force calculation
                                     let tang_overlap = v_t * dt;
-                                    hist.get_mut(&src.id).unwrap().insert(j, tang_overlap);
+                                    hist.get_mut(&srce.id).unwrap().insert(j, tang_overlap);
                                     // Note the difference between stage 1 and stage 2
-                                    hist0.get_mut(&src.id).unwrap().insert(j, tang_overlap);
+                                    hist0.get_mut(&srce.id).unwrap().insert(j, tang_overlap);
                                 }
                             }
                         };
                     }
+                    dest.fx[i] += f[0];
+                    dest.fy[i] += f[1];
+                    dest.fz[i] += f[2];
                 }
-                // if they are not overlapping, remove the particle j of src id
+                // if they are not overlapping, remove the particle j of srce id
                 // from history of particle i
                 else {
                     // Check for tangential contacts only if there is friction
                     if mu != 0. {
                         // get the history of all particles being tracked by
                         // particle i
-                        let hist = &mut dst.tang_history[i];
-                        let hist0 = &mut dst.tang_history0[i];
+                        let hist = &mut dest.tang_history[i];
+                        let hist0 = &mut dest.tang_history0[i];
 
                         // -------------------------------------------------
                         // Tangential overlap variable explanation
@@ -395,7 +407,7 @@ pub fn linear_viscoelastic_model_other_dem(
                         // -------------------------------------------------
 
                         // Find the index j in hist of particle i with id of
-                        // src.id
+                        // srce.id
 
                         // If j is already been tracked then remove it
                         // If it is not been tracked then leave hist alone
@@ -404,17 +416,17 @@ pub fn linear_viscoelastic_model_other_dem(
                         // match is provided by rust and it's awesome
 
                         // this leaf is to check if the particle i has history
-                        // with the src
-                        match hist.contains_key(&src.id) {
-                            // If it has neighbours with src, then
+                        // with the srce
+                        match hist.contains_key(&srce.id) {
+                            // If it has neighbours with srce, then
                             // go ahead and check if it is tracking particle j
                             true => {
-                                match hist[&src.id].contains_key(&j) {
+                                match hist[&srce.id].contains_key(&j) {
                                     // If it has particle j
                                     // remove it
                                     true => {
-                                        hist.get_mut(&src.id).unwrap().remove(&j);
-                                        hist0.get_mut(&src.id).unwrap().remove(&j);
+                                        hist.get_mut(&srce.id).unwrap().remove(&j);
+                                        hist0.get_mut(&srce.id).unwrap().remove(&j);
                                     }
 
                                     // if it doesn't have particle index j, then
@@ -423,7 +435,7 @@ pub fn linear_viscoelastic_model_other_dem(
                                 };
                             }
 
-                            // if it doesn't have src id, then leave it alone
+                            // if it doesn't have srce id, then leave it alone
                             false => {}
                         };
                     }
@@ -433,276 +445,382 @@ pub fn linear_viscoelastic_model_other_dem(
     }
 }
 
-pub fn spring_force_self(
-    e: &mut DemDiscrete,
+/// Linear dashpot model introduced by Cundall and Strack.
+pub fn linear_viscoelastic_model_dem_self<T>(
+    dst: &mut T,
     kn: f32,
     mu: f32,
     dt: f32,
+    stage: usize,
     grid: &LinkedListGrid,
     dim: usize,
-) {
+) where
+    T: DemDiscreteDstTrait,
+{
+    // Select the neighbours function according to the dimention
     let get_nbrs = if dim == 3 {
         get_neighbours_ll_3d
     } else {
         get_neighbours_ll_2d
     };
 
-    for i in 0..e.len {
-        let nbrs = get_nbrs([e.x[i], e.y[i], e.z[i]], &grid, &e.id);
+    let dest = dst.get_parts_mut();
+
+    // Select the neighbours function according to the dimention
+    for i in 0..*dest.len {
+        // position of particle i
+        let pos_i = V3::new(dest.x[i], dest.y[i], dest.z[i]);
+        // linear velocity of particle i
+        let vel_i = V3::new(dest.u[i], dest.v[i], dest.w[i]);
+        // angular velocity of particle i
+        let ang_vel_i = V3::new(dest.omega_x[i], dest.omega_y[i], dest.omega_z[i]);
+
+        let nbrs = get_nbrs([dest.x[i], dest.y[i], dest.z[i]], &grid, &dest.id);
 
         for sub_view in nbrs {
+            // neighbour indices j
             for &j in sub_view {
                 if i != j {
-                    let dx = e.x[i] - e.x[j];
-                    let dy = e.y[i] - e.y[j];
-                    let dz = e.z[i] - e.z[j];
-                    let dist = (dx.powf(2.) + dy.powf(2.) + dz.powf(2.)).powf(0.5);
-                    let overlap = e.rad[i] + e.rad[j] - dist;
+                    // position of particle j in source
+                    let pos_j = V3::new(dest.x[j], dest.y[j], dest.z[j]);
+                    // velocity of particle j
+                    let vel_j = V3::new(dest.u[j], dest.v[j], dest.w[j]);
+                    // angular velocity of particle j
+                    let ang_vel_j = V3::new(dest.omega_x[j], dest.omega_y[j], dest.omega_z[j]);
 
-                    if overlap > 0. {
-                        // force on i due to j
-                        let mut fij = V3::new(0., 0., 0.);
-                        // normal vector from j to i -> n_ij
-                        let nij = V3::new(dx / dist, dy / dist, dz / dist);
+                    // find the unit vector from j to i
+                    let dx = pos_i.x - pos_j.x;
+                    let dy = pos_i.y - pos_j.y;
+                    let dz = pos_i.z - pos_j.z;
 
-                        // angular velocity of particle i and j
-                        let ang_i = V3::new(e.omega_x[i], e.omega_y[i], e.omega_z[i]);
-                        let ang_j = V3::new(e.omega_x[j], e.omega_y[j], e.omega_z[j]);
+                    let distance = (dx.powf(2.) + dy.powf(2.) + dz.powf(2.)).sqrt();
+                    // radius sum
+                    let radsum = dest.rad[i] + dest.rad[j];
 
-                        // -----------------------------
-                        // relative velocity of contact point of i w.r.t particle j
-                        // Reduced radius from overlap is
-                        let alpha_i = e.rad[i] - overlap / 2.;
-                        let alpha_j = e.rad[j] - overlap / 2.;
+                    // overlap amount
+                    let delta_n = radsum - distance;
 
-                        // cross product of angular velocity with normal
-                        let ang_cross_n = nij.cross(alpha_i * ang_i + alpha_j * ang_j);
+                    // check if particles are in overlap
+                    if delta_n > 0. {
+                        // Define the force variables, total, tangential, torsion
+                        let mut f = V3::zero();
+                        let mut f_t: V3<f32> = V3::zero();
+                        let mut f_r: V3<f32> = V3::zero();
 
-                        // relative velocity vij
-                        let vij = V3::new(e.u[i], e.v[i], e.w[i]) - V3::new(e.u[j], e.v[j], e.w[j])
-                            + ang_cross_n;
+                        // normal vector
+                        let nij = unit_vector_from_dx(dx, dy, dz, distance);
 
-                        let vndot = -dot(vij, nij);
+                        // relative velocity
+                        let v_ij = relative_velocity(
+                            vel_i,
+                            vel_j,
+                            ang_vel_i,
+                            ang_vel_j,
+                            nij,
+                            dest.rad[i],
+                            dest.rad[j],
+                        ); // this is vector
 
-                        // compute normal force due to j on i
-                        // use linear force model
-                        // contact force in normal direction
-                        let fdotn = kn * overlap + 0.001 * vndot;
+                        // relative  normal velocity
+                        let v_n = v_ij.dot(nij) * nij; //this is vector
+                        // relative  tangential velocity
+                        let v_t = v_ij - v_n; //this is vector
 
-                        // add normal contact force to total contact force
-                        fij += fdotn * nij;
+                        // ----------------------------------------------------
+                        // Normal force with damping
+                        // FIX ME: Need to use real coefficients
+                        let f_n = kn * delta_n * nij - v_n * 0.001;
 
-                        // ----------------------------
-                        // Tangential force computation
-                        // Check if the particles have friction.
-                        // No friction means no tangential force computation
+                        // Add normal force to total force with damping in normal direction
+                        f += f_n;
+
+                        // ----------------------------------------------------
+                        // ----------------Tangential force -------------------
+                        // Check for tangential contacts only if there is friction
                         if mu != 0. {
-                            // find the relative tangential velocity
-                            let vt = vij + nij * vndot;
-                            // let the tangential force be
-                            let mut ft: V3<f32> = V3::zero();
+                            // If tangential forces are present
+                            // get the history of all particles being tracked by
+                            // particle i
+                            let hist = &mut dest.tang_history[i];
 
-                            // get the tangential spring connected from i to j.
-                            // if no spring is available, that implies this is the
-                            // first time interaction. So we will add a spring.
+                            // -------------------------------------------------
+                            // Tangential overlap variable explanation
+                            // -------------------------------------------------
 
-                            // check if the particle at index has the corresponding
-                            // source (entities) id
-                            match e.tang_history[i].contains_key(&e.id) {
+                            // the variable above (hist) contains particles already in
+                            // overlap.
+
+                            // The particle i's neighbours looks like
+
+                            // hist = {'0': {'2': Vector3, '31': Vector3, '7': Vector3},
+                            //           '1': {'3': Vector3, '5': Vector3, '9': Vector3}}
+
+                            // The meaning of above format is, particle i is is already
+                            // contact with an entities with id's '0' and '1'.
+
+                            // diving little deep gives us the indices of those entites
+                            // as, particle of index '9' has neighbours [2, 31, 7] of
+                            // entity '0'. And also has neighbours [3, 5, 9] of entity
+                            // '1'.
+
+                            // So the type of hist would be
+                            // Vec<HashMap<usize, HashMap<usize, Vector3>>>
+                            // -------------------------------------------------
+                            // Tangential overlap variable explanation
+                            // -------------------------------------------------
+
+                            // Find the index j in hist of particle i with id of
+                            // srce.id
+
+                            // If j is already been tracked then remove it
+                            // If it is not been tracked then leave hist alone
+
+                            // Note: To do this operatio I am using match
+                            // match is provided by rust and it's awesome
+
+                            // this leaf is to check if the particle i has history
+                            // with the srce entity
+                            match hist.contains_key(&dest.id) {
+                                // If it has neighbours with srce, then
+                                // go ahead and check if it is tracking particle j
                                 true => {
-                                    // now check if particle j is there in the list
-                                    // of tangential historys
-                                    match e.tang_history[i][&e.id].contains_key(&j) {
+                                    match hist[&dest.id].contains_key(&j) {
+                                        // If it already has particle j
+                                        // Then find the force due to its current
+                                        // tangential spring elongation
                                         true => {
-                                            // this implies that the particle j is already in contact
-                                            // with particle i
-                                            // So we can simply increment the tangential overlap of particle
-                                            // j spring connected to i
-
-                                            // first project the tangential spring onto the current plane
-                                            let mut delta_t = &mut e.tang_history[i]
-                                                .get_mut(&e.id)
+                                            // Get the spring
+                                            let mut tang_overlap = hist.get_mut(&dest.id)
                                                 .unwrap()
                                                 .get_mut(&j)
                                                 .unwrap();
-                                            let delta_t_dot_n = dot(**delta_t, nij);
-                                            **delta_t -= delta_t_dot_n * nij;
 
-                                            // find the tangential force using the spring projected
-                                            // onto current tangential plane
-                                            // FIXME: Dissipation is needed to add
-                                            let mut ft_0 = V3::zero();
-                                            // temporary dissipation coefficient
-                                            let disp = 10.;
-                                            ft_0 = -kn * **delta_t - disp * vt;
-                                            let ft_0_magn = ft_0.magnitude();
-                                            let norm_fn = fdotn.abs();
+                                            // Now project the spring onto current tangential plane
+                                            // http://www.piko.ovgu.de/piko_media/aktuelles/Siegen/LUDING2012PIKO_Contacts.pdf
+                                            let tang_overlap_rotated =
+                                                *tang_overlap - nij * (dot(*tang_overlap, nij));
 
-                                            // tangential direction will be
-                                            let tx = ft_0[0] / ft_0_magn;
-                                            let ty = ft_0[1] / ft_0_magn;
-                                            let tz = ft_0[2] / ft_0_magn;
+                                            // Find tangential test force from the rotated spring
+                                            let f_t0 = -1e4 * tang_overlap_rotated - 0.001 * v_t;
+                                            let f_t0_magn = f_t0.magnitude();
 
-                                            let f_couloumb = mu * norm_fn;
-
-                                            if ft_0_magn < f_couloumb {
-                                                // Add the tangential force to totoal tangential
-                                                // force of i due to j
-                                                ft[0] += ft_0[0];
-                                                ft[1] += ft_0[1];
-                                                ft[2] += ft_0[2];
-
-                                                // using the current velocity increment the the
-                                                // spring for next iteration.
-                                                // This is similar to integrating the position
-                                                // dt will depend on the stage of integrator.
-                                                // If we are in the first stage of RK2, then
-                                                // the time step will be dt / 2. So an appropriate
-                                                // time step is needed to be provided by the user.
-                                                **delta_t += vt * dt;
+                                            // find the tangential unit vector
+                                            let t_ij = if f_t0_magn > 0. {
+                                                f_t0 / f_t0.magnitude()
                                             } else {
-                                                // Add the tangential force to totoal tangential
-                                                // force of i due to j
-                                                ft[0] += f_couloumb * tx;
-                                                ft[1] += f_couloumb * ty;
-                                                ft[2] += f_couloumb * tz;
+                                                V3::zero()
+                                            };
 
-                                                // FIXME: Differentiate between slding and
-                                                // dynamic friction
+                                            // Check for sliding
+                                            let fn_norm = f_n.magnitude();
+                                            if f_t0_magn <= mu * fn_norm {
+                                                // Set the tangential force to test tangential
+                                                // force
+                                                f_t = f_t0;
 
-                                                // adjust the spring length to corresponding
-                                                // tangential force in dynamic friction
-                                                delta_t[0] = -f_couloumb * tx / kn;
-                                                delta_t[1] = -f_couloumb * ty / kn;
-                                                delta_t[2] = -f_couloumb * tz / kn;
+                                                // Increment the tangential spring
+                                                // for next time step
+                                                // Note: dt changes for different stages
+                                                if stage == 1 {
+                                                    *tang_overlap = tang_overlap_rotated + v_t * dt;
+                                                } else if stage == 2 {
+                                                    // use the tangential overlap at time t i.e., tang_overlap0
+                                                    // project it onto current orientaton, i.e., t + dt / 2
+                                                    let hist0 = &mut dest.tang_history0[i];
+                                                    let tang_overlap0 = hist0
+                                                        .get_mut(&dest.id)
+                                                        .unwrap()
+                                                        .get_mut(&j)
+                                                        .unwrap();
+                                                    let tang_overlap_rotated0 = *tang_overlap0
+                                                        - nij * (dot(*tang_overlap, nij));
+                                                    *tang_overlap =
+                                                        tang_overlap_rotated0 + v_t * dt;
+                                                    *tang_overlap0 = *tang_overlap;
+                                                }
+                                            } else {
+                                                // So the particles slide.
+                                                // Set the tangential force to the maximum force allowed
+                                                // by Couloumb force
+
+                                                // FIX ME: Change friction coefficient to sliding
+                                                f_t = mu * fn_norm * t_ij;
+
+                                                // Restrict the spring length such that the resultant
+                                                // tangential force equals Couloumb force
+                                                // Note: dt changes for different stages
+                                                if stage == 1 {
+                                                    *tang_overlap = (f_t + 0.001 * v_t) / 1e4;
+                                                } else if stage == 2 {
+                                                    // use the tangential overlap at time t i.e., tang_overlap0
+                                                    // project it onto current orientaton, i.e., t + dt / 2
+                                                    let hist0 = &mut dest.tang_history0[i];
+                                                    let tang_overlap0 = hist0
+                                                        .get_mut(&dest.id)
+                                                        .unwrap()
+                                                        .get_mut(&j)
+                                                        .unwrap();
+                                                    *tang_overlap = (f_t + 0.001 * v_t) / 1e4;
+                                                    *tang_overlap0 = *tang_overlap;
+                                                }
                                             }
-
-                                            // add
                                         }
+
+                                        // if it doesn't have particle index j, then
+                                        // add the particle to the history
                                         false => {
-                                            // since tangential overlap particle i of e id,
-                                            // doesn't already have a contact with particle j of
-                                            // another e
-                                            // We have to add such id to particle i's tangential
-                                            // overlap attribute
-                                            assert_eq!(
-                                                e.tang_history[i]
-                                                    .get_mut(&e.id)
+                                            // create tangential_overlap0 and tangential_overlap
+                                            let tang_overlap0 = V3::zero();
+
+                                            // Since this is first time contact, we will not
+                                            // have any tangential force
+                                            // ----------Skip force calculation-------------
+
+                                            // Increment spring to next time step
+
+                                            if stage == 1 {
+                                                let tang_overlap = v_t * dt;
+                                                hist.get_mut(&dest.id)
                                                     .unwrap()
-                                                    .insert(j, V3::new(0., 0., 0.)),
-                                                None
-                                            );
-                                            // Note: No force is computed as this is first time overlap
-
-                                            // increment the tangential overlap to next time step
-                                            // using the current velocity
-
-                                            let mut delta_t = &mut e.tang_history[i]
-                                                .get_mut(&e.id)
-                                                .unwrap()
-                                                .get_mut(&j)
-                                                .unwrap();
-                                            **delta_t += vt * dt;
+                                                    .insert(j, tang_overlap);
+                                                let hist0 = &mut dest.tang_history0[i];
+                                                hist0
+                                                    .get_mut(&dest.id)
+                                                    .unwrap()
+                                                    .insert(j, tang_overlap0);
+                                            } else if stage == 2 {
+                                                // use the tangential overlap at time t i.e., tang_overlap0
+                                                // since this is first time contact there won't
+                                                // be any force calculation
+                                                let tang_overlap = v_t * dt;
+                                                hist.get_mut(&dest.id)
+                                                    .unwrap()
+                                                    .insert(j, tang_overlap);
+                                                let hist0 = &mut dest.tang_history0[i];
+                                                // Note the difference between stage 1 and stage 2
+                                                hist0
+                                                    .get_mut(&dest.id)
+                                                    .unwrap()
+                                                    .insert(j, tang_overlap);
+                                            }
                                         }
-                                    }
+                                    };
                                 }
+
+                                // if it doesn't have srce id, add the srce id
                                 false => {
-                                    // this case implies that for particle i, there was never
-                                    // a connection to the e
+                                    // add srce id as source to tangential history
+                                    hist.insert(*dest.id, HashMap::new());
 
-                                    // so first we need to add the outer hashmap
-                                    assert_eq!(
-                                        e.tang_history[i].insert(e.id, HashMap::new()),
-                                        None
-                                    );
-                                    // now add the particle j to the list of
-                                    // e of particle i
-                                    assert_eq!(
-                                        e.tang_history[i]
-                                            .get_mut(&e.id)
-                                            .unwrap()
-                                            .insert(j, V3::new(0., 0., 0.)),
-                                        None
-                                    );
-                                    // Note: No force is computed as this is first time overlap
+                                    // And also in the temporary history
+                                    let hist0 = &mut dest.tang_history0[i];
+                                    hist0.insert(*dest.id, HashMap::new());
 
-                                    // increment the tangential overlap to next time step
-                                    // using the current velocity
+                                    // ------------------------------------
+                                    // now add the particle j in srce_d hashmap
 
-                                    let mut delta_t = &mut e.tang_history[i]
-                                        .get_mut(&e.id)
-                                        .unwrap()
-                                        .get_mut(&j)
-                                        .unwrap();
-                                    **delta_t += vt * dt;
-                                }
-                            }
-                        }
+                                    // create tangential_overlap0 and tangential_overlap
+                                    let tang_overlap0 = V3::zero();
 
-                        e.fx[i] += fij[0];
-                        e.fy[i] += fij[1];
-                        e.fz[i] += fij[2];
-                    } else {
-                        // Since this element is not in overlap,
-                        // remove it from the tangential tracking of the
-                        // particles, if it is been tracked
+                                    // Since this is first time contact, we will not
+                                    // have any tangential force
+                                    // ----------Skip force calculation-------------
 
-                        // check if the particle j is in the contact list
-                        // of particle i
-                        match e.tang_history[i].contains_key(&e.id) {
-                            true => {
-                                match e.tang_history[i][&e.id].contains_key(&j) {
-                                    true => {
-                                        // remove the particle j from tracking
-                                        let _deleted =
-                                            e.tang_history[i].get_mut(&e.id).unwrap().remove(&j);
+                                    // Increment spring to next time step
+
+                                    if stage == 1 {
+                                        let tang_overlap = v_t * dt;
+                                        hist.get_mut(&dest.id).unwrap().insert(j, tang_overlap);
+                                        hist0.get_mut(&dest.id).unwrap().insert(j, tang_overlap0);
+                                    } else if stage == 2 {
+                                        // use the tangential overlap at time t i.e., tang_overlap0
+                                        // since this is first time contact there won't
+                                        // be any force calculation
+                                        let tang_overlap = v_t * dt;
+                                        hist.get_mut(&dest.id).unwrap().insert(j, tang_overlap);
+                                        // Note the difference between stage 1 and stage 2
+                                        hist0.get_mut(&dest.id).unwrap().insert(j, tang_overlap);
                                     }
-                                    _ => {}
                                 }
-                            }
-                            _ => {}
+                            };
+                            // add tangential force to total force of particle
+                            f += f_t;
+                        }
+                        // add total force to global force
+                        dest.fx[i] += f[0];
+                        dest.fy[i] += f[1];
+                        dest.fz[i] += f[2];
+                    }
+                    // if they are not overlapping, remove the particle j of srce id
+                    // from history of particle i
+                    else {
+                        // Check for tangential contacts only if there is friction
+                        if mu != 0. {
+                            // get the history of all particles being tracked by
+                            // particle i
+                            let hist = &mut dest.tang_history[i];
+                            let hist0 = &mut dest.tang_history0[i];
+
+                            // -------------------------------------------------
+                            // Tangential overlap variable explanation
+                            // -------------------------------------------------
+
+                            // the variable above (hist) contains particles already in
+                            // overlap.
+
+                            // The particle i's neighbours looks like
+
+                            // hist = {'0': {'2': Vector3, '31': Vector3, '7': Vector3},
+                            //           '1': {'3': Vector3, '5': Vector3, '9': Vector3}}
+
+                            // The meaning of above format is, particle i is is already
+                            // contact with an entities with id's '0' and '1'.
+
+                            // diving little deep gives us the indices of those entites
+                            // as, particle of index '9' has neighbours [2, 31, 7] of
+                            // entity '0'. And also has neighbours [3, 5, 9] of entity
+                            // '1'.
+
+                            // So the type of hist would be
+                            // Vec<HashMap<usize, HashMap<usize, Vector3>>>
+                            // -------------------------------------------------
+                            // Tangential overlap variable explanation
+                            // -------------------------------------------------
+
+                            // Find the index j in hist of particle i with id of
+                            // srce.id
+
+                            // If j is already been tracked then remove it
+                            // If it is not been tracked then leave hist alone
+
+                            // Note: To do this operatio I am using match
+                            // match is provided by rust and it's awesome
+
+                            // this leaf is to check if the particle i has history
+                            // with the srce
+                            match hist.contains_key(&dest.id) {
+                                // If it has neighbours with srce, then
+                                // go ahead and check if it is tracking particle j
+                                true => {
+                                    match hist[&dest.id].contains_key(&j) {
+                                        // If it has particle j
+                                        // remove it
+                                        true => {
+                                            hist.get_mut(&dest.id).unwrap().remove(&j);
+                                            hist0.get_mut(&dest.id).unwrap().remove(&j);
+                                        }
+
+                                        // if it doesn't have particle index j, then
+                                        // leave it alone
+                                        false => {}
+                                    };
+                                }
+
+                                // if it doesn't have srce id, then leave it alone
+                                false => {}
+                            };
                         }
                     }
-                }
-            }
-        }
-    }
-}
-
-pub fn spring_force_other(
-    destination: &mut DemDiscrete,
-    source: &mut DemDiscrete,
-    kn: f32,
-    grid: &LinkedListGrid,
-    dim: usize,
-) {
-    let get_nbrs = if dim == 3 {
-        get_neighbours_ll_3d
-    } else {
-        get_neighbours_ll_2d
-    };
-
-    for i in 0..destination.len {
-        let nbrs = get_nbrs(
-            [destination.x[i], destination.y[i], destination.z[i]],
-            &grid,
-            &source.id,
-        );
-
-        for sub_view in nbrs {
-            for &j in sub_view {
-                let dx = destination.x[i] - source.x[j];
-                let dy = destination.y[i] - source.y[j];
-                let dz = destination.z[i] - source.z[j];
-                let dist = (dx.powf(2.) + dy.powf(2.) + dz.powf(2.)).powf(0.5);
-                let overlap = destination.rad[i] + source.rad[j] - dist;
-                if overlap > 0. {
-                    let nx = dx / dist;
-                    let ny = dy / dist;
-                    let nz = dz / dist;
-                    destination.fx[i] += kn * overlap * nx;
-                    destination.fy[i] += kn * overlap * ny;
-                    destination.fz[i] += kn * overlap * nz;
                 }
             }
         }
@@ -753,6 +871,3 @@ impl RK2 for DemDiscrete {
         }
     }
 }
-
-#[test]
-fn test_unit_vector() {}

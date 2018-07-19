@@ -18,6 +18,36 @@ pub trait NNPS {
     fn get_z(&self) -> &Vec<f32>;
 }
 
+#[macro_export]
+macro_rules! impl_nnps{
+    ($($t:ty)*) => ($(
+        impl NNPS for $t {
+            fn get_parts_mut(&mut self) -> NNPSMutParts {
+                NNPSMutParts{
+                    len: &mut self.len,
+                    x: &mut self.x,
+                    y: &mut self.y,
+                    z: &mut self.z,
+                    h: &mut self.h,
+                    id: &mut self.id,
+                }
+            }
+
+            fn get_x(&self) ->  & Vec<f32>{
+                &self.x
+            }
+
+            fn get_y(&self) ->  & Vec<f32>{
+                &self.y
+            }
+
+            fn get_z(&self) ->  & Vec<f32>{
+                &self.z
+            }
+        }
+    )*)
+}
+
 #[derive(Debug, Clone)]
 pub struct CellGrid {
     pub indices: HashMap<usize, Vec<usize>>,

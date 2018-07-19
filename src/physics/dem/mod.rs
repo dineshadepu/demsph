@@ -1,6 +1,7 @@
-use contact_search::{NNPSMutParts, NNPS};
 use cm::Vector3;
+use contact_search::{NNPSMutParts, NNPS};
 use std::collections::HashMap;
+
 pub mod equations;
 
 pub struct DemDiscrete {
@@ -83,25 +84,130 @@ impl DemDiscrete {
     }
 }
 
-impl NNPS for DemDiscrete {
-    fn get_parts_mut(&mut self) -> NNPSMutParts {
-        NNPSMutParts {
-            len: &mut self.len,
-            x: &mut self.x,
-            y: &mut self.y,
-            z: &mut self.z,
-            h: &mut self.h,
-            id: &mut self.id,
-        }
-    }
-
-    fn get_x(&self) -> &Vec<f32> {
-        &self.x
-    }
-    fn get_y(&self) -> &Vec<f32> {
-        &self.y
-    }
-    fn get_z(&self) -> &Vec<f32> {
-        &self.z
-    }
+pub struct DemDiscreteDstStrkt<'a> {
+    pub len: &'a mut usize,
+    pub m: &'a mut Vec<f32>,
+    pub x: &'a mut Vec<f32>,
+    pub y: &'a mut Vec<f32>,
+    pub z: &'a mut Vec<f32>,
+    pub u: &'a mut Vec<f32>,
+    pub v: &'a mut Vec<f32>,
+    pub w: &'a mut Vec<f32>,
+    pub omega_x: &'a mut Vec<f32>,
+    pub omega_y: &'a mut Vec<f32>,
+    pub omega_z: &'a mut Vec<f32>,
+    pub inertia: &'a mut Vec<f32>,
+    pub h: &'a mut Vec<f32>,
+    pub m_inv: &'a mut Vec<f32>,
+    pub i_inv: &'a mut Vec<f32>,
+    pub rad: &'a mut Vec<f32>,
+    pub fx: &'a mut Vec<f32>,
+    pub fy: &'a mut Vec<f32>,
+    pub fz: &'a mut Vec<f32>,
+    pub taux: &'a mut Vec<f32>,
+    pub tauy: &'a mut Vec<f32>,
+    pub tauz: &'a mut Vec<f32>,
+    pub id: &'a mut usize,
+    pub name: &'a mut String,
+    pub tang_history: &'a mut Vec<HashMap<usize, HashMap<usize, Vector3<f32>>>>,
+    pub tang_history0: &'a mut Vec<HashMap<usize, HashMap<usize, Vector3<f32>>>>,
 }
+
+pub struct DemDiscreteSrcStrkt<'a> {
+    pub m: &'a mut Vec<f32>,
+    pub x: &'a mut Vec<f32>,
+    pub y: &'a mut Vec<f32>,
+    pub z: &'a mut Vec<f32>,
+    pub u: &'a mut Vec<f32>,
+    pub v: &'a mut Vec<f32>,
+    pub w: &'a mut Vec<f32>,
+    pub omega_x: &'a mut Vec<f32>,
+    pub omega_y: &'a mut Vec<f32>,
+    pub omega_z: &'a mut Vec<f32>,
+    pub inertia: &'a mut Vec<f32>,
+    pub h: &'a mut Vec<f32>,
+    pub m_inv: &'a mut Vec<f32>,
+    pub i_inv: &'a mut Vec<f32>,
+    pub rad: &'a mut Vec<f32>,
+    pub id: &'a mut usize,
+    pub name: &'a mut String,
+}
+
+#[macro_export]
+macro_rules! impl_DemDiscreteDstTrait{
+    ($($t:ty)*) => ($(
+        impl DemDiscreteDstTrait for $t {
+            fn get_parts_mut(&mut self) -> DemDiscreteDstStrkt {
+                DemDiscreteDstStrkt{
+                    len: &mut self.len,
+                    m: &mut self.m,
+                    x: &mut self.x,
+                    y: &mut self.y,
+                    z: &mut self.z,
+                    u: &mut self.u,
+                    v: &mut self.v,
+                    w: &mut self.w,
+                    omega_x: &mut self.omega_x,
+                    omega_y: &mut self.omega_y,
+                    omega_z: &mut self.omega_z,
+                    inertia: &mut self.inertia,
+                    h: &mut self.h,
+                    m_inv: &mut self.m_inv,
+                    i_inv: &mut self.i_inv,
+                    rad: &mut self.rad,
+                    fx: &mut self.fx,
+                    fy: &mut self.fy,
+                    fz: &mut self.fz,
+                    taux: &mut self.taux,
+                    tauy: &mut self.tauy,
+                    tauz: &mut self.tauz,
+                    id: &mut self.id,
+                    name: &mut self.name,
+                    tang_history: &mut self.tang_history,
+                    tang_history0: &mut self.tang_history0,
+                }
+            }
+        }
+    )*)
+}
+
+
+pub trait DemDiscreteDstTrait {
+    fn get_parts_mut(&mut self) -> DemDiscreteDstStrkt;
+}
+
+pub trait DemDiscreteSrcTrait {
+    fn get_parts_mut(&mut self) -> DemDiscreteSrcStrkt;
+}
+
+#[macro_export]
+macro_rules! impl_DemDiscreteSrcTrait{
+    ($($t:ty)*) => ($(
+        impl DemDiscreteSrcTrait for $t {
+            fn get_parts_mut(&mut self) -> DemDiscreteSrcStrkt {
+                DemDiscreteSrcStrkt{
+                    m: &mut self.m,
+                    x: &mut self.x,
+                    y: &mut self.y,
+                    z: &mut self.z,
+                    u: &mut self.u,
+                    v: &mut self.v,
+                    w: &mut self.w,
+                    omega_x: &mut self.omega_x,
+                    omega_y: &mut self.omega_y,
+                    omega_z: &mut self.omega_z,
+                    inertia: &mut self.inertia,
+                    h: &mut self.h,
+                    m_inv: &mut self.m_inv,
+                    i_inv: &mut self.i_inv,
+                    rad: &mut self.rad,
+                    id: &mut self.id,
+                    name: &mut self.name,
+                }
+            }
+        }
+    )*)
+}
+impl_nnps![DemDiscrete];
+impl_DemDiscreteDstTrait![DemDiscrete];
+impl_DemDiscreteSrcTrait![DemDiscrete];
