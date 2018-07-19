@@ -13,6 +13,8 @@ keywords = ["dem","sph","fluid simulation"]
 itertools="0.7"
 rulinalg="0.4.2"
 cgmath="0.16"
+# Using for linspace and arange
+ndarray="0.11"
 
 
 [lib]

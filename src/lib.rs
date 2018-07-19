@@ -7,6 +7,9 @@ extern crate rulinalg;
 #[macro_use]
 extern crate cgmath as cm;
 
+#[macro_use]
+extern crate ndarray;
+
 pub mod contact_search;
 pub mod geometry;
 pub mod integrate;

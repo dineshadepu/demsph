@@ -1,32 +1,11 @@
+use ndarray::{Array};
+
 pub fn linspace(start: f32, stop: f32, num: isize) -> Vec<f32> {
-    if num < 0 {
-        panic!("Number of samples, {}, must be non-negative.", num);
-    }
-    let range = stop - start;
-    let divide = num as f32;
-    let dx = range / divide;
-    let mut tmp = 1;
-    let mut y = vec![start];
-    let mut next = start + dx;
-    while tmp <= num {
-        y.push(next);
-        next = next + dx;
-        tmp = tmp + 1;
-    }
-    return y;
+    Array::linspace(start, stop, num as usize).to_vec()
 }
 
 pub fn arange(start: f32, stop: f32, spacing: f32) -> Vec<f32> {
-    if spacing < 0. {
-        panic!("Spacing {} can't be negative", spacing);
-    }
-    let mut y = Vec::new();
-    let mut tmp = start;
-    while tmp <= stop {
-        y.push(tmp);
-        tmp = tmp + spacing;
-    }
-    return y;
+    Array::range(start, stop, spacing).to_vec()
 }
 
 pub fn grid_2d(length: f32, height: f32, spacing: f32) -> (Vec<f32>, Vec<f32>) {
@@ -238,4 +217,29 @@ pub fn zeros_like(x: &Vec<f32>) -> Vec<f32> {
 pub fn ones_like(x: &Vec<f32>) -> Vec<f32> {
     let y = vec![1.; x.len()];
     return y;
+}
+
+/**
+Returns particle coordinates of hopper with given bottom
+radius, top radius and the height of the hopper. Hopper will
+be symmetric wrt y axis with left point in bottom radius will
+be at negative radii, and right at positve radii.
+ */
+pub fn hopper_2d(
+    hop_br: f32,
+    hop_tr: f32,
+    hop_hei: f32,
+    hop_spacing: f32,
+) -> (Vec<f32>, Vec<f32>) {
+    // hpr: hopper 2d right side part
+    let mut hpr_y = arange(0., hop_hei, hop_spacing);
+    let x_spacing = (hop_tr - hop_br) /  hpr_y.len() as f32;
+    let mut hpr_x = arange(hop_br, hop_tr, x_spacing);
+
+    // left side coordinates
+    let mut hpl_x = hpr_x.iter().map(|&x| -x).collect::<Vec<_>>();
+    let mut hpl_y = arange(0., hop_hei, hop_spacing);
+    hpl_x.append(&mut hpr_x);
+    hpl_y.append(&mut hpr_y);
+    (hpl_x, hpl_y)
 }
